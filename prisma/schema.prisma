@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProteinTarget {
+  id            String   @id @default(cuid())
+  name          String
+  uniprotId     String?
+  pdbId         String?
+  geneName      String?
+  organism      String?
+  targetClass   String   // e.g. "Class A Beta-Lactamase", "Metallo-Beta-Lactamase", "DNA Gyrase"
+  sequence      String?
+  sequenceLength Int?
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  analyses      AnalysisRun[]
+}
+
+model AnalysisRun {
+  id            String   @id @default(cuid())
+  proteinId     String
+  module        String   // "SEFE", "DAPM", "ASE3DIFF"
+  status        String   @default("pending") // "pending", "running", "completed", "failed"
+  parameters    String   // JSON string of input parameters
+  results       String?  // JSON string of results
+  runtimeMs     Int?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  protein       ProteinTarget @relation(fields: [proteinId], references: [id])
+  mutations     MutationResult[]
+  pockets       PocketResult[]
+  diffusionResults DiffusionResult[]
+}
+
+model MutationResult {
+  id            String   @id @default(cuid())
+  analysisId    String
+  mutation      String   // e.g. "G238S", "E104K:G238S"
+  position      Int
+  wildType      String   // Single amino acid code
+  mutantType    String   // Single amino acid code
+  ddgFold       Float?   // Folding stability change (kcal/mol)
+  ddgCatalysis  Float?   // Catalytic efficiency change (kcal/mol)
+  ddgBinding    Float?   // Drug binding affinity change (kcal/mol)
+  fitnessScore  Float?   // Combined structural fitness score
+  esm2Score     Float?   // ESM-2 log-likelihood ratio
+  coevolScore   Float?   // Evolutionary co-coupling score
+  isCompensatory Boolean @default(false)
+  createdAt     DateTime @default(now())
+
+  analysis      AnalysisRun @relation(fields: [analysisId], references: [id])
+}
+
+model PocketResult {
+  id            String   @id @default(cuid())
+  analysisId    String
+  pocketId      Int
+  center_x      Float
+  center_y      Float
+  center_z      Float
+  volume        Float
+  surfaceArea   Float?
+  depth         Float?
+  druggability  Float?   // 0-1 score
+  residues      String   // Comma-separated residue IDs
+  pocketType    String   @default("cryptic") // "cryptic", "allosteric", "active-site"
+  conservation  Float?   // Evolutionary conservation score
+  createdAt     DateTime @default(now())
+
+  analysis      AnalysisRun @relation(fields: [analysisId], references: [id])
+}
+
+model DiffusionResult {
+  id            String   @id @default(cuid())
+  analysisId    String
+  pocketId      Int
+  iterations    Int
+  generatedSmiles String?
+  qedScore      Float?   // Drug-likeness (0-1)
+  saScore       Float?   // Synthetic accessibility (1-10, lower is better)
+  lipinskiViolations Int?
+  mw            Float?   // Molecular weight
+  logP          Float?   // Partition coefficient
+  hbd           Int?     // Hydrogen bond donors
+  hba           Int?     // Hydrogen bond acceptors
+  tpsa          Float?   // Topological polar surface area
+  createdAt     DateTime @default(now())
+
+  analysis      AnalysisRun @relation(fields: [analysisId], references: [id])
+}

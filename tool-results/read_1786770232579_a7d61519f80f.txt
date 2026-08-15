@@ -1,0 +1,844 @@
+   310→    <TooltipProvider delayDuration={200}>
+   311→      <div className="w-full max-w-5xl mx-auto space-y-6 p-4 md:p-6">
+   312→        {/* ---- Header ---- */}
+   313→        <motion.div
+   314→          initial={{ opacity: 0, y: -8 }}
+   315→          animate={{ opacity: 1, y: 0 }}
+   316→          transition={{ duration: 0.4 }}
+   317→          className="flex flex-col sm:flex-row sm:items-center gap-3"
+   318→        >
+   319→          <div className="flex items-center gap-2.5">
+   320→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+   321→              <Activity className="h-5 w-5 text-emerald-500" />
+   322→            </div>
+   323→            <div>
+   324→              <h2 className="text-lg font-bold tracking-tight text-foreground">
+   325→                SEFE Module
+   326→              </h2>
+   327→              <p className="text-xs text-muted-foreground leading-tight">
+   328→                Structural Epistatic Fitness Engine
+   329→              </p>
+   330→            </div>
+   331→          </div>
+   332→          <Badge
+   333→            variant="outline"
+   334→            className="w-fit text-[10px] tracking-wide border-emerald-500/30 text-emerald-600 bg-emerald-500/5"
+   335→          >
+   336→            RESISTODIFF-3D
+   337→          </Badge>
+   338→        </motion.div>
+   339→
+   340→        <Separator className="opacity-50" />
+   341→
+   342→        {/* ---- Section 1: Protein Target Selector ---- */}
+   343→        <motion.div variants={fadeVariants} initial="hidden" animate="visible" custom={0}>
+   344→          <Card className="border-slate-200/60 dark:border-slate-700/40">
+   345→            <CardHeader className="pb-3">
+   346→              <div className="flex items-center gap-2">
+   347→                <Target className="h-4 w-4 text-teal-500" />
+   348→                <CardTitle className="text-sm font-semibold">
+   349→                  Protein Target
+   350→                </CardTitle>
+   351→              </div>
+   352→              <CardDescription className="text-xs">
+   353→                Select a protein target for mutational escape analysis
+   354→              </CardDescription>
+   355→            </CardHeader>
+   356→            <CardContent className="space-y-4">
+   357→              <div className="flex flex-col sm:flex-row gap-3">
+   358→                <div className="flex-1">
+   359→                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+   360→                    Target Protein
+   361→                  </Label>
+   362→                  <Select
+   363→                    value={selectedTargetId}
+   364→                    onValueChange={(v) => {
+   365→                      setSelectedTargetId(v);
+   366→                      setResults([]);
+   367→                      setHasRun(false);
+   368→                    }}
+   369→                  >
+   370→                    <SelectTrigger className="w-full">
+   371→                      <SelectValue />
+   372→                    </SelectTrigger>
+   373→                    <SelectContent>
+   374→                      {PROTEIN_TARGETS.map((t) => (
+   375→                        <SelectItem key={t.id} value={t.id}>
+   376→                          <div className="flex items-center gap-2">
+   377→                            {targetIcon(t.targetClass)}
+   378→                            <span>{t.name}</span>
+   379→                          </div>
+   380→                        </SelectItem>
+   381→                      ))}
+   382→                    </SelectContent>
+   383→                  </Select>
+   384→                </div>
+   385→              </div>
+   386→
+   387→              {/* Target info card */}
+   388→              <AnimatePresence mode="wait">
+   389→                <motion.div
+   390→                  key={selectedTargetId}
+   391→                  initial={{ opacity: 0, height: 0 }}
+   392→                  animate={{ opacity: 1, height: 'auto' }}
+   393→                  exit={{ opacity: 0, height: 0 }}
+   394→                  transition={{ duration: 0.3 }}
+   395→                  className="overflow-hidden"
+   396→                >
+   397→                  <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 bg-muted/30 p-4 space-y-3">
+   398→                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   399→                      <Tooltip>
+   400→                        <TooltipTrigger asChild>
+   401→                          <div className="space-y-0.5">
+   402→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   403→                              Class
+   404→                            </p>
+   405→                            <p className="text-xs font-semibold text-foreground">
+   406→                              {selectedTarget.targetClass}
+   407→                            </p>
+   408→                          </div>
+   409→                        </TooltipTrigger>
+   410→                        <TooltipContent>
+   411→                          <p className="text-xs">Protein functional classification</p>
+   412→                        </TooltipContent>
+   413→                      </Tooltip>
+   414→
+   415→                      <Tooltip>
+   416→                        <TooltipTrigger asChild>
+   417→                          <div className="space-y-0.5">
+   418→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   419→                              Organism
+   420→                            </p>
+   421→                            <p className="text-xs font-semibold text-foreground">
+   422→                              {selectedTarget.organism}
+   423→                            </p>
+   424→                          </div>
+   425→                        </TooltipTrigger>
+   426→                        <TooltipContent>
+   427→                          <p className="text-xs">Source organism</p>
+   428→                        </TooltipContent>
+   429→                      </Tooltip>
+   430→
+   431→                      <Tooltip>
+   432→                        <TooltipTrigger asChild>
+   433→                          <div className="space-y-0.5">
+   434→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   435→                              Sequence Length
+   436→                            </p>
+   437→                            <p className="text-xs font-semibold text-foreground tabular-nums">
+   438→                              {selectedTarget.sequenceLength} aa
+   439→                            </p>
+   440→                          </div>
+   441→                        </TooltipTrigger>
+   442→                        <TooltipContent>
+   443→                          <p className="text-xs">Number of amino acid residues</p>
+   444→                        </TooltipContent>
+   445→                      </Tooltip>
+   446→
+   447→                      <Tooltip>
+   448→                        <TooltipTrigger asChild>
+   449→                          <div className="space-y-0.5">
+   450→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   451→                              PDB / UniProt
+   452→                            </p>
+   453→                            <p className="text-xs font-semibold text-foreground">
+   454→                              {selectedTarget.pdbId} / {selectedTarget.uniprotId}
+   455→                            </p>
+   456→                          </div>
+   457→                        </TooltipTrigger>
+   458→                        <TooltipContent>
+   459→                          <p className="text-xs">Structure & sequence database IDs</p>
+   460→                        </TooltipContent>
+   461→                      </Tooltip>
+   462→                    </div>
+   463→
+   464→                    <div className="flex flex-wrap gap-1.5">
+   465→                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium self-center mr-1">
+   466→                        Key Residues:
+   467→                      </span>
+   468→                      {selectedTarget.keyResidues.map((r) => (
+   469→                        <Badge
+   470→                          key={r}
+   471→                          variant="outline"
+   472→                          className="text-[10px] px-1.5 py-0 font-mono border-teal-500/30 text-teal-600 bg-teal-500/5"
+   473→                        >
+   474→                          {r}
+   475→                        </Badge>
+   476→                      ))}
+   477→                    </div>
+   478→
+   479→                    <div className="flex items-start gap-2 rounded-md bg-slate-100/60 dark:bg-slate-800/40 p-2.5">
+   480→                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+   481→                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+   482→                        <span className="font-medium text-foreground">Resistance Mechanism: </span>
+   483→                        {selectedTarget.resistanceMechanism}
+   484→                      </p>
+   485→                    </div>
+   486→                  </div>
+   487→                </motion.div>
+   488→              </AnimatePresence>
+   489→            </CardContent>
+   490→          </Card>
+   491→        </motion.div>
+   492→
+   493→        {/* ---- Section 2: Mutation Input ---- */}
+   494→        <motion.div variants={fadeVariants} initial="hidden" animate="visible" custom={1}>
+   495→          <Card className="border-slate-200/60 dark:border-slate-700/40">
+   496→            <CardHeader className="pb-3">
+   497→              <div className="flex items-center gap-2">
+   498→                <FlaskConical className="h-4 w-4 text-amber-500" />
+   499→                <CardTitle className="text-sm font-semibold">
+   500→                  Mutation Input
+   501→                </CardTitle>
+   502→              </div>
+   503→              <CardDescription className="text-xs">
+   504→                Enter point mutations (e.g. G238S, E104K, S83L) — one per line or comma-separated
+   505→              </CardDescription>
+   506→            </CardHeader>
+   507→            <CardContent className="space-y-3">
+   508→              <Label htmlFor="mutation-input" className="sr-only">
+   509→                Mutations
+   510→              </Label>
+   511→              <textarea
+   512→                id="mutation-input"
+   513→                value={mutationInput}
+   514→                onChange={(e) => setMutationInput(e.target.value)}
+   515→                placeholder={"G238S\nE104K\nM182T\nR164S"}
+   516→                rows={4}
+   517→                className={cn(
+   518→                  'flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-xs',
+   519→                  'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+   520→                  'disabled:cursor-not-allowed disabled:opacity-50',
+   521→                  'resize-y min-h-[80px] max-h-[200px]'
+   522→                )}
+   523→                disabled={isAnalyzing}
+   524→              />
+   525→
+   526→              <div className="flex flex-wrap gap-2">
+   527→                <Button
+   528→                  variant="outline"
+   529→                  size="sm"
+   530→                  onClick={handleAddKnown}
+   531→                  disabled={isAnalyzing}
+   532→                  className="text-xs gap-1.5 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
+   533→                >
+   534→                  <BookmarkPlus className="h-3.5 w-3.5" />
+   535→                  Add Known Mutations
+   536→                </Button>
+   537→
+   538→                <div className="flex-1" />
+   539→
+   540→                <Button
+   541→                  variant="ghost"
+   542→                  size="sm"
+   543→                  onClick={handleReset}
+   544→                  disabled={isAnalyzing}
+   545→                  className="text-xs gap-1.5 text-muted-foreground"
+   546→                >
+   547→                  <RotateCcw className="h-3.5 w-3.5" />
+   548→                  Reset
+   549→                </Button>
+   550→
+   551→                <Button
+   552→                  size="sm"
+   553→                  onClick={handleRunAnalysis}
+   554→                  disabled={isAnalyzing || parseMutations(mutationInput).length === 0}
+   555→                  className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+   556→                >
+   557→                  {isAnalyzing ? (
+   558→                    <>
+   559→                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+   560→                      Analyzing…
+   561→                    </>
+   562→                  ) : (
+   563→                    <>
+   564→                      <Play className="h-3.5 w-3.5" />
+   565→                      Run Analysis
+   566→                    </>
+   567→                  )}
+   568→                </Button>
+   569→              </div>
+   570→            </CardContent>
+   571→          </Card>
+   572→        </motion.div>
+   573→
+   574→        {/* ---- Sections 3-6: Results ---- */}
+   575→        <AnimatePresence>
+   576→          {(isAnalyzing || hasRun) && (
+   577→            <motion.div
+   578→              initial={{ opacity: 0, y: 16 }}
+   579→              animate={{ opacity: 1, y: 0 }}
+   580→              exit={{ opacity: 0, y: 16 }}
+   581→              transition={{ duration: 0.4 }}
+   582→            >
+   583→              {isAnalyzing ? (
+   584→                /* ---- Loading State ---- */
+   585→                <Card className="border-slate-200/60 dark:border-slate-700/40">
+   586→                  <CardContent className="p-6 space-y-4">
+   587→                    <div className="flex items-center gap-2">
+   588→                      <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+   589→                      <span className="text-sm font-medium text-muted-foreground">
+   590→                        Computing structural epistatic fitness landscape…
+   591→                      </span>
+   592→                    </div>
+   593→                    <div className="space-y-3">
+   594→                      <div className="flex items-center gap-3">
+   595→                        <Skeleton className="h-3 w-24" />
+   596→                        <Skeleton className="h-3 flex-1" />
+   597→                      </div>
+   598→                      <div className="flex items-center gap-3">
+   599→                        <Skeleton className="h-3 w-20" />
+   600→                        <Skeleton className="h-3 flex-1" />
+   601→                      </div>
+   602→                      <div className="flex items-center gap-3">
+   603→                        <Skeleton className="h-3 w-28" />
+   604→                        <Skeleton className="h-3 flex-1" />
+   605→                      </div>
+   606→                      <div className="flex items-center gap-3">
+   607→                        <Skeleton className="h-3 w-16" />
+   608→                        <Skeleton className="h-3 flex-1" />
+   609→                      </div>
+   610→                    </div>
+   611→                    <div className="pt-2">
+   612→                      <Skeleton className="h-48 w-full rounded-lg" />
+   613→                    </div>
+   614→                  </CardContent>
+   615→                </Card>
+   616→              ) : (
+   617→                /* ---- Results Tabs ---- */
+   618→                <Tabs
+   619→                  value={activeResultTab}
+   620→                  onValueChange={setActiveResultTab}
+   621→                  className="w-full"
+   622→                >
+   623→                  <TabsList className="w-full grid grid-cols-4 mb-4 bg-muted/50 h-10">
+   624→                    <TabsTrigger value="table" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   625→                      <Sparkles className="h-3.5 w-3.5 hidden sm:inline-block" />
+   626→                      Results
+   627→                    </TabsTrigger>
+   628→                    <TabsTrigger value="chart" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   629→                      <Activity className="h-3.5 w-3.5 hidden sm:inline-block" />
+   630→                      Fitness Chart
+   631→                    </TabsTrigger>
+   632→                    <TabsTrigger value="epistasis" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   633→                      <Network className="h-3.5 w-3.5 hidden sm:inline-block" />
+   634→                      Epistasis
+   635→                    </TabsTrigger>
+   636→                    <TabsTrigger value="mcts" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   637→                      <TreePine className="h-3.5 w-3.5 hidden sm:inline-block" />
+   638→                      MCTS Tree
+   639→                    </TabsTrigger>
+   640→                  </TabsList>
+   641→
+   642→                  {/* ---- Tab: Results Table ---- */}
+   643→                  <TabsContent value="table" className="mt-0">
+   644→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   645→                      <CardHeader className="pb-3">
+   646→                        <div className="flex items-center justify-between">
+   647→                          <div className="flex items-center gap-2">
+   648→                            <Sparkles className="h-4 w-4 text-emerald-500" />
+   649→                            <CardTitle className="text-sm font-semibold">
+   650→                              Mutation Analysis Results
+   651→                            </CardTitle>
+   652→                          </div>
+   653→                          <Badge variant="outline" className="text-[10px] font-normal">
+   654→                            {results.length} mutation{results.length !== 1 ? 's' : ''}
+   655→                          </Badge>
+   656→                        </div>
+   657→                        <CardDescription className="text-xs">
+   658→                          ΔΔG values in kcal/mol · Fitness score integrates fold stability, catalysis, binding & ESM-2 embeddings
+   659→                        </CardDescription>
+   660→                      </CardHeader>
+   661→                      <CardContent className="p-0">
+   662→                        <ScrollArea className="max-h-[420px]">
+   663→                          <Table>
+   664→                            <TableHeader>
+   665→                              <TableRow className="hover:bg-transparent">
+   666→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground w-[110px]">
+   667→                                  Mutation
+   668→                                </TableHead>
+   669→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center w-[60px]">
+   670→                                  Pos
+   671→                                </TableHead>
+   672→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   673→                                  ΔΔG Fold
+   674→                                </TableHead>
+   675→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   676→                                  ΔΔG Catal.
+   677→                                </TableHead>
+   678→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   679→                                  ΔΔG Bind
+   680→                                </TableHead>
+   681→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   682→                                  ESM-2
+   683→                                </TableHead>
+   684→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   685→                                  Coevol
+   686→                                </TableHead>
+   687→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   688→                                  Fitness
+   689→                                </TableHead>
+   690→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   691→                                  Type
+   692→                                </TableHead>
+   693→                              </TableRow>
+   694→                            </TableHeader>
+   695→                            <TableBody>
+   696→                              {results.map((r, i) => {
+   697→                                const badge = fitnessBadgeVariant(r.fitnessScore, r.isCompensatory);
+   698→                                return (
+   699→                                  <motion.tr
+   700→                                    key={r.mutation}
+   701→                                    initial={{ opacity: 0 }}
+   702→                                    animate={{ opacity: 1 }}
+   703→                                    transition={{ delay: i * 0.04 }}
+   704→                                    className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+   705→                                  >
+   706→                                    <TableCell className="py-2.5">
+   707→                                      <span className="font-mono text-xs font-semibold text-foreground">
+   708→                                        {r.mutation}
+   709→                                      </span>
+   710→                                    </TableCell>
+   711→                                    <TableCell className="py-2.5 text-center">
+   712→                                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+   713→                                        {r.position > 0 ? r.position : '—'}
+   714→                                      </span>
+   715→                                    </TableCell>
+   716→                                    <TableCell className="py-2.5 text-right">
+   717→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   718→                                        {r.ddgFold > 0 ? '+' : ''}{r.ddgFold.toFixed(1)}
+   719→                                      </span>
+   720→                                    </TableCell>
+   721→                                    <TableCell className="py-2.5 text-right">
+   722→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   723→                                        {r.ddgCatalysis > 0 ? '+' : ''}{r.ddgCatalysis.toFixed(1)}
+   724→                                      </span>
+   725→                                    </TableCell>
+   726→                                    <TableCell className="py-2.5 text-right">
+   727→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   728→                                        {r.ddgBinding > 0 ? '+' : ''}{r.ddgBinding.toFixed(1)}
+   729→                                      </span>
+   730→                                    </TableCell>
+   731→                                    <TableCell className="py-2.5 text-right">
+   732→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   733→                                        {r.esm2Score > 0 ? '+' : ''}{r.esm2Score.toFixed(1)}
+   734→                                      </span>
+   735→                                    </TableCell>
+   736→                                    <TableCell className="py-2.5 text-right">
+   737→                                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+   738→                                        {r.coevolScore.toFixed(2)}
+   739→                                      </span>
+   740→                                    </TableCell>
+   741→                                    <TableCell className="py-2.5 text-right">
+   742→                                      <span
+   743→                                        className={cn(
+   744→                                          'font-mono text-xs font-bold tabular-nums',
+   745→                                          fitnessColor(r.fitnessScore)
+   746→                                        )}
+   747→                                      >
+   748→                                        {r.fitnessScore > 0 ? '+' : ''}{r.fitnessScore.toFixed(1)}
+   749→                                      </span>
+   750→                                    </TableCell>
+   751→                                    <TableCell className="py-2.5 text-center">
+   752→                                      <Badge
+   753→n                                        variant="outline"
+   754→                                        className={cn(
+   755→                                          'text-[10px] px-1.5 py-0 font-medium border',
+   756→                                          badge.className
+   757→                                        )}
+   758→                                      >
+   759→                                        {badge.label}
+   760→                                      </Badge>
+   761→                                    </TableCell>
+   762→                                  </motion.tr>
+   763→                                );
+   764→                              })}
+   765→                            </TableBody>
+   766→                          </Table>
+   767→                        </ScrollArea>
+   768→                      </CardContent>
+   769→                    </Card>
+   770→                  </TabsContent>
+   771→
+   772→                  {/* ---- Tab: Fitness Bar Chart ---- */}
+   773→                  <TabsContent value="chart" className="mt-0">
+   774→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   775→                      <CardHeader className="pb-3">
+   776→                        <div className="flex items-center gap-2">
+   777→                          <Activity className="h-4 w-4 text-emerald-500" />
+   778→                          <CardTitle className="text-sm font-semibold">
+   779→                            Fitness Score Landscape
+   780→                          </CardTitle>
+   781→                        </div>
+   782→                        <CardDescription className="text-xs">
+   783→                          Combined fitness scores ranked by mutational escape potential
+   784→                        </CardDescription>
+   785→                      </CardHeader>
+   786→                      <CardContent>
+   787→                        {/* Legend */}
+   788→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+   789→                          <div className="flex items-center gap-1.5">
+   790→                            <div className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+   791→                            <span className="text-[10px] text-muted-foreground">Resistance</span>
+   792→                          </div>
+   793→                          <div className="flex items-center gap-1.5">
+   794→                            <div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+   795→                            <span className="text-[10px] text-muted-foreground">Compensatory</span>
+   796→                          </div>
+   797→                          <div className="flex items-center gap-1.5">
+   798→                            <div className="h-2.5 w-2.5 rounded-sm bg-slate-500" />
+   799→                            <span className="text-[10px] text-muted-foreground">Neutral</span>
+   800→                          </div>
+   801→                        </div>
+   802→
+   803→                        {chartData.length > 0 ? (
+   804→                          <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 36 + 40)}>
+   805→                            <BarChart
+   806→                              data={chartData}
+   807→                              layout="vertical"
+   808→                              margin={{ top: 0, right: 40, bottom: 0, left: 10 }}
+   809→                            >
+   810→                              <XAxis
+   811→                                type="number"
+   812→                                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+   813→                                axisLine={{ stroke: 'hsl(var(--border))' }}
+   814→                                tickLine={false}
+   815→                              />
+   816→                              <YAxis
+   817→                                type="category"
+   818→                                dataKey="mutation"
+   819→                                tick={{ fontSize: 11, fontFamily: 'monospace', fill: 'hsl(var(--foreground))' }}
+   820→                                axisLine={false}
+   821→                                tickLine={false}
+   822→                                width={120}
+   823→                              />\n                              <RechartsTooltip content={<CustomTooltip />} />
+   824→                              <Bar
+   825→                                dataKey="fitness"
+   826→                                radius={[0, 4, 4, 0]}
+   827→                                barSize={20}
+   828→                                animationDuration={800}
+   829→                              >
+   830→                                {chartData.map((entry, index) => (
+   831→                                  <Cell
+   832→                                    key={index}
+   833→                                    fill={barColor(entry.type)}
+   834→                                    fillOpacity={0.8}
+   835→                                  />
+   836→                                ))}
+   837→                              </Bar>
+   838→                            </BarChart>
+   839→                          </ResponsiveContainer>
+   840→                        ) : (
+   841→                          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+   842→                            No results to display. Run an analysis first.
+   843→                          </div>
+   844→                        )}
+   845→                      </CardContent>
+   846→                    </Card>
+   847→                  </TabsContent>
+   848→
+   849→                  {/* ---- Tab: Epistatic Interaction Heatmap ---- */}
+   850→                  <TabsContent value="epistasis" className="mt-0">
+   851→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   852→                      <CardHeader className="pb-3">
+   853→                        <div className="flex items-center gap-2">
+   854→                          <Network className="h-4 w-4 text-amber-500" />
+   855→                          <CardTitle className="text-sm font-semibold">
+   856→                            Epistatic Interaction Map
+   857→                          </CardTitle>
+   858→                        </div>
+   859→                        <CardDescription className="text-xs">
+   860→                          Pairwise epistatic interactions between mutations · Individual vs. combined fitness effects
+   861→                        </CardDescription>
+   862→                      </CardHeader>
+   863→                      <CardContent>
+   864→                        {/* Legend */}
+   865→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+   866→                          <div className="flex items-center gap-1.5">
+   867→                            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   868→                            <span className="text-[10px] text-muted-foreground">Synergistic</span>
+   869→                          </div>
+   870→                          <div className="flex items-center gap-1.5">
+   871→                            <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+   872→                            <span className="text-[10px] text-muted-foreground">Antagonistic</span>
+   873→                          </div>
+   874→                          <div className="flex items-center gap-1.5">
+   875→                            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500" />
+   876→                            <span className="text-[10px] text-muted-foreground">Additive</span>
+   877→                          </div>
+   878→                          <div className="flex items-center gap-1.5">
+   879→                            <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+   880→                            <span className="text-[10px] text-muted-foreground">Neutral</span>
+   881→                          </div>
+   882→                        </div>
+   883→
+   884→                        {/* Epistasis grid */}
+   885→                        <ScrollArea className="max-h-[400px]">
+   886→                          <div className="rounded-lg border border-border/50 overflow-hidden">
+   887→                            {/* Header */}
+   888→                            <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr] bg-muted/50 px-4 py-2.5 border-b border-border/50">
+   889→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+   890→                                Mutation 1
+   891→                              </span>
+   892→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+   893→                                Mutation 2
+   894→                              </span>
+   895→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   896→                                Individual Σ
+   897→                              </span>
+   898→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   899→                                Combined
+   900→                              </span>
+   901→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   902→                                Interaction
+   903→                              </span>
+   904→                            </div>
+   905→
+   906→                            {EPISTATIC_PAIRS.map((pair, i) => {
+   907→                              const style = epistasisStyle(pair.type);
+   908→                              return (
+   909→                                <motion.div
+   910→                                  key={`${pair.mut1}-${pair.mut2}`}
+   911→                                  initial={{ opacity: 0, x: -8 }}
+   912→                                  animate={{ opacity: 1, x: 0 }}
+   913→                                  transition={{ delay: i * 0.06 }}
+   914→                                  className={cn(
+   915→                                    'grid grid-cols-[1fr_1fr_1fr_1fr_1fr] items-center px-4 py-3 border-b border-border/30 last:border-0',
+   916→                                    'hover:bg-muted/20 transition-colors'
+   917→                                  )}
+   918→                                >
+   919→                                  <span className="font-mono text-xs font-semibold text-foreground">
+   920→                                    {pair.mut1}
+   921→                                  </span>
+   922→                                  <span className="font-mono text-xs font-semibold text-foreground">
+   923→                                    {pair.mut2}
+   924→                                  </span>
+   925→                                  <span className="font-mono text-xs text-center tabular-nums text-muted-foreground">
+   926→                                    {pair.individual.toFixed(1)}
+   927→                                  </span>
+   928→                                  <span className="font-mono text-xs text-center tabular-nums font-semibold text-foreground">
+   929→                                    {pair.combined.toFixed(1)}
+   930→                                  </span>
+   931→                                  <div className="flex items-center justify-center gap-1.5">
+   932→                                    <span
+   933→                                      className={cn(
+   934→                                        'font-mono text-xs tabular-nums font-bold',
+   935→                                        style.text
+   936→                                      )}
+   937→                                    >
+   938→                                      {pair.interaction > 0 ? '+' : ''}{pair.interaction.toFixed(1)}
+   939→                                    </span>
+   940→                                    <Badge
+   941→                                      variant="outline"
+   942→                                      className={cn(
+   943→                                        'text-[9px] px-1.5 py-0 border capitalize font-medium',
+   944→                                        style.bg,
+   945→                                        style.text,
+   946→                                        style.border
+   947→                                      )}
+   948→                                    >
+   949→                                      {pair.type}
+   950→                                    </Badge>
+   951→                                  </div>
+   952→                                </motion.div>
+   953→                              );
+   954→                            })}
+   955→                          </div>
+   956→                        </ScrollArea>
+   957→
+   958→                        {/* Interaction strength visual bar */}
+   959→                        <div className="mt-4 space-y-2">
+   960→                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+   961→                            Interaction Strength
+   962→                          </p>
+   963→                          <div className="flex flex-col gap-1.5">
+   964→                            {EPISTATIC_PAIRS.map((pair) => {
+   965→                              const style = epistasisStyle(pair.type);
+   966→                              const absInteraction = Math.abs(pair.interaction);
+   967→                              const maxInteraction = 2.4;
+   968→                              const widthPct = (absInteraction / maxInteraction) * 100;
+   969→                              return (
+   970→                                <div
+   971→                                  key={`${pair.mut1}-${pair.mut2}-bar`}
+   972→                                  className="flex items-center gap-2"
+   973→                                >
+   974→                                  <span className="font-mono text-[10px] text-muted-foreground w-[100px] truncate shrink-0">
+   975→                                    {pair.mut1}+{pair.mut2}
+   976→                                  </span>
+   977→                                  <div className="flex-1 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+   978→                                    <motion.div
+   979→                                      initial={{ width: 0 }}
+   980→                                      animate={{ width: `${widthPct}%` }}
+   981→                                      transition={{ duration: 0.6, delay: 0.3 }}
+   982→                                      className={cn('h-full rounded-full', style.dot)}
+   983→                                    />
+   984→                                  </div>
+   985→                                  <span className={cn('font-mono text-[10px] tabular-nums w-[36px] text-right font-medium', style.text)}>
+   986→                                    {pair.interaction > 0 ? '+' : ''}{pair.interaction.toFixed(1)}
+   987→                                  </span>
+   988→                                </div>
+   989→                              );
+   990→                            })}
+   991→                          </div>
+   992→                        </div>
+   993→                      </CardContent>
+   994→                    </Card>
+   995→                  </TabsContent>
+   996→
+   997→                  {/* ---- Tab: MCTS Tree ---- */}
+   998→                  <TabsContent value="mcts" className="mt-0">
+   999→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+  1000→                      <CardHeader className="pb-3">
+  1001→                        <div className="flex items-center justify-between">
+  1002→                          <div className="flex items-center gap-2">
+  1003→                            <TreePine className="h-4 w-4 text-teal-500" />
+  1004→                            <CardTitle className="text-sm font-semibold">
+  1005→                              MCTS Exploration Tree
+  1006→                            </CardTitle>
+  1007→                          </div>
+  1008→                          <Badge variant="outline" className="text-[10px] font-normal border-teal-500/30 text-teal-600 bg-teal-500/5">
+  1009→                            Monte Carlo Tree Search
+  1010→                          </Badge>
+  1011→                        </div>
+  1012→                        <CardDescription className="text-xs">
+  1013→                          Mutational escape trajectory exploration · Nodes ranked by visit count (n) and cumulative fitness (F)
+  1014→                        </CardDescription>
+  1015→                      </CardHeader>
+  1016→                      <CardContent>
+  1017→                        {/* Legend */}
+  1018→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+  1019→                          <div className="flex items-center gap-1.5">
+  1020→                            <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+  1021→                            <span className="text-[10px] text-muted-foreground">Resistance Path</span>
+  1022→                          </div>
+  1023→                          <div className="flex items-center gap-1.5">
+  1024→                            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+  1025→                            <span className="text-[10px] text-muted-foreground">Compensatory</span>
+  1026→                          </div>
+  1027→                          <div className="flex items-center gap-1.5">
+  1028→                            <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+  1029→                            <span className="text-[10px] text-muted-foreground">Deleterious / Low-Fitness</span>
+  1030→                          </div>
+  1031→                          <div className="flex items-center gap-1.5">
+  1032→                            <CircleDot className="h-3 w-3 text-muted-foreground" />
+  1033→                            <span className="text-[10px] text-muted-foreground">Node size ∝ visit count</span>
+  1034→                          </div>
+  1035→                        </div>
+  1036→
+  1037→                        {/* Tree visualization */}
+  1038→                        <ScrollArea className="max-h-[500px] rounded-lg border border-border/30 bg-muted/10 p-4">
+  1039→                          <div className="min-w-[320px]">
+  1040→                            {/* Root node */}
+  1041→                            <motion.div
+  1042→                              initial={{ opacity: 0, scale: 0.95 }}
+  1043→                              animate={{ opacity: 1, scale: 1 }}
+  1044→                              transition={{ duration: 0.4 }}
+  1045→                              className="mb-1"
+  1046→                            >
+  1047→                              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/60 px-4 py-2.5">
+  1048→                                <div className="h-3 w-3 rounded-full bg-slate-400" />
+  1049→                                <span className="font-mono text-sm font-bold text-foreground">
+  1050→                                  {DEMO_MCTS_TREE.mutation}
+  1051→                                </span>
+  1052→                                <span className="text-[10px] text-muted-foreground tabular-nums">
+  1053→                                  n={DEMO_MCTS_TREE.visits}
+  1054→                                </span>
+  1055→                              </div>
+  1056→                            </motion.div>
+  1057→
+  1058→                            {/* Child tree */}
+  1059→                            <div className="ml-4 mt-1 border-l-2 border-slate-200 dark:border-slate-700 pl-4">
+  1060→                              {DEMO_MCTS_TREE.children.map((child, idx) => (
+  1061→                                <MCTSTreeNode
+  1062→                                  key={child.id}
+  1063→                                  node={child}
+  1064→                                  isLast={idx === DEMO_MCTS_TREE.children.length - 1}
+  1065→                                />
+  1066→                              ))}
+  1067→                            </div>
+  1068→                          </div>
+  1069→                        </ScrollArea>
+  1070→
+  1071→                        {/* Summary stats */}
+  1072→                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+  1073→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1074→                            <p className="text-lg font-bold tabular-nums text-foreground">
+  1075→                              {countNodes(DEMO_MCTS_TREE)}
+  1076→                            </p>
+  1077→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1078→                              Total Nodes
+  1079→                            </p>
+  1080→                          </div>
+  1081→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1082→                            <p className="text-lg font-bold tabular-nums text-rose-500">
+  1083→                              {countResistanceNodes(DEMO_MCTS_TREE)}
+  1084→                            </p>
+  1085→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1086→                              Resistance
+  1087→                            </p>
+  1088→                          </div>
+  1089→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1090→                            <p className="text-lg font-bold tabular-nums text-foreground">
+  1091→                              {maxDepth(DEMO_MCTS_TREE)}
+  1092→                            </p>
+  1093→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1094→                              Max Depth
+  1095→                            </p>
+  1096→                          </div>
+  1097→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1098→                            <p className="text-lg font-bold tabular-nums text-rose-500">
+  1099→                              {bestFitness(DEMO_MCTS_TREE).toFixed(1)}
+  1100→                            </p>
+  1101→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1102→                              Best Fitness
+  1103→                            </p>
+  1104→                          </div>
+  1105→                        </div>
+  1106→                      </CardContent>
+  1107→                    </Card>
+  1108→                  </TabsContent>
+  1109→                </Tabs>
+  1110→              )}
+  1111→            </motion.div>
+  1112→          )}
+  1113→        </AnimatePresence>
+  1114→
+  1115→        {/* ---- Footer hint ---- */}
+  1116→        {results.length > 0 && (
+  1117→          <motion.p
+  1118→            initial={{ opacity: 0 }}
+  1119→            animate={{ opacity: 1 }}
+  1120→            className="text-center text-[10px] text-muted-foreground pb-2"
+  1121→          >
+  1122→            SEFE v1.0 · Fitness scores are unitless composite metrics · ΔΔG in kcal/mol
+  1123→          </motion.p>
+  1124→        )}
+  1125→      </div>
+  1126→    </TooltipProvider>
+  1127→  );
+  1128→}
+  1129→
+  1130→// --- MCTS Tree helpers ---
+  1131→function countNodes(node: MCTSNode): number {
+  1132→  return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0);
+  1133→}
+  1134→
+  1135→function countResistanceNodes(node: MCTSNode): number {
+  1136→  return (
+  1137→    (node.isResistance ? 1 : 0) +
+  1138→    node.children.reduce((sum, c) => sum + countResistanceNodes(c), 0)
+  1139→  );
+  1140→}
+  1141→
+  1142→function maxDepth(node: MCTSNode): number {
+  1143→  if (node.children.length === 0) return node.depth;
+  1144→  return Math.max(...node.children.map(maxDepth));
+  1145→}
+  1146→
+  1147→function bestFitness(node: MCTSNode): number {
+  1148→  const childBest = node.children.length > 0
+  1149→    ? Math.max(...node.children.map(bestFitness))
+  1150→    : -Infinity;
+  1151→  return Math.max(node.fitnessScore, childBest);
+  1152→}
+  1153→

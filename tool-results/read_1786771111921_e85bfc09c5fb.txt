@@ -1,0 +1,1171 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useCallback, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  BarChart,
+     7→  Bar,
+     8→  XAxis,
+     9→  YAxis,
+    10→  Tooltip as RechartsTooltip,
+    11→  ResponsiveContainer,
+    12→  Cell,
+    13→} from 'recharts';
+    14→import {
+    15→  Dna,
+    16→  Play,
+    17→  FlaskConical,
+    18→  Activity,
+    19→  Network,
+    20→  TreePine,
+    21→  ChevronRight,
+    22→  Info,
+    23→  Sparkles,
+    24→  AlertTriangle,
+    25→  CheckCircle2,
+    26→  MinusCircle,
+    27→  Loader2,
+    28→  BookmarkPlus,
+    29→  RotateCcw,
+    30→  Target,
+    31→  Atom,
+    32→  Bug,
+    33→  CircleDot,
+    34→} from 'lucide-react';
+    35→
+    36→import { cn } from '@/lib/utils';
+    37→import {
+    38→  type MutationResult,
+    39→  type MCTSNode,
+    40→  type ProteinTarget,
+    41→  PROTEIN_TARGETS,
+    42→  KNOWN_MUTATIONS,
+    43→  EPISTATIC_PAIRS,
+    44→  DEMO_MCTS_TREE,
+    45→  simulateMutationAnalysis,
+    46→} from '@/lib/resistodiff-data';
+    47→
+    48→import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+    49→import { Badge } from '@/components/ui/badge';
+    50→import { Button } from '@/components/ui/button';
+    51→import { Input } from '@/components/ui/input';
+    52→import { Label } from '@/components/ui/label';
+    53→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    54→import { Skeleton } from '@/components/ui/skeleton';
+    55→import { Separator } from '@/components/ui/separator';
+    56→import { ScrollArea } from '@/components/ui/scroll-area';
+    57→import {
+    58→  Table,
+    59→  TableBody,
+    60→  TableCell,
+    61→  TableHead,
+    62→  TableHeader,
+    63→  TableRow,
+    64→} from '@/components/ui/table';
+    65→import {
+    66→  Tooltip,
+    67→  TooltipTrigger,
+    68→  TooltipContent,
+    69→  TooltipProvider,
+    70→} from '@/components/ui/tooltip';
+    71→import {
+    72→  Select,
+    73→  SelectContent,
+    74→  SelectItem,
+    75→  SelectTrigger,
+    76→  SelectValue,
+    77→} from '@/components/ui/select';
+    78→
+    79→// --- Helper: Fitness color class ---
+    80→function fitnessColor(score: number): string {
+    81→  if (score > 3) return 'text-rose-500';
+    82→  if (score >= 1) return 'text-amber-500';
+    83→  return 'text-emerald-500';
+    84→}
+    85→
+    86→function fitnessBg(score: number): string {
+    87→  if (score > 3) return 'bg-rose-500/10 border-rose-500/20';
+    88→  if (score >= 1) return 'bg-amber-500/10 border-amber-500/20';
+    89→  return 'bg-emerald-500/10 border-emerald-500/20';
+    90→}
+    91→
+    92→function fitnessBadgeVariant(score: number, isCompensatory: boolean): {
+    93→  label: string;
+    94→  className: string;
+    95→} {
+    96→  if (isCompensatory) return { label: 'Compensatory', className: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/25' };
+    97→  if (Math.abs(score) < 0.5) return { label: 'Neutral', className: 'bg-slate-500/15 text-slate-500 border-slate-500/30 hover:bg-slate-500/25' };
+    98→  return { label: 'Resistance', className: 'bg-rose-500/15 text-rose-600 border-rose-500/30 hover:bg-rose-500/25' };
+    99→}
+   100→
+   101→// --- MCTS Tree Node Renderer ---
+   102→function MCTSTreeNode({ node, isLast }: { node: MCTSNode; isLast: boolean }) {
+   103→  const nodeColor = node.isResistance
+   104→    ? 'border-rose-400/60 bg-rose-500/5 hover:bg-rose-500/10'
+   105→    : node.fitnessScore < 0
+   106→      ? 'border-slate-400/40 bg-slate-500/5 hover:bg-slate-500/10'
+   107→      : 'border-emerald-400/60 bg-emerald-500/5 hover:bg-emerald-500/10';
+   108→
+   109→  const scoreColor = node.isResistance
+   110→    ? 'text-rose-500'
+   111→    : node.fitnessScore < 0
+   112→      ? 'text-slate-500'
+   113→      : 'text-emerald-500';
+   114→
+   115→  const dotColor = node.isResistance
+   116→    ? 'bg-rose-500'
+   117→    : node.fitnessScore < 0
+   118→      ? 'bg-slate-400'
+   119→      : 'bg-emerald-500';
+   120→
+   121→  return (
+   122→    <div className="flex gap-2">
+   123→      {/* Vertical connector line for parent */}
+   124→      <div className="relative flex flex-col items-center">
+   125→        <div
+   126→          className={cn(
+   127→            'w-px flex-1 min-h-[20px]',
+   128→            isLast ? 'bg-transparent' : 'bg-slate-300 dark:bg-slate-600'
+   129→          )}
+   130→        />
+   131→        <div className={cn('w-2.5 h-2.5 rounded-full shrink-0 border-2 border-background', dotColor)} />
+   132→        <div className="w-px flex-1 min-h-[20px] bg-slate-300 dark:bg-slate-600" />
+   133→      </div>
+   134→
+   135→      {/* Node content + children */}
+   136→      <div className="flex-1 min-w-0 pb-4">
+   137→        <motion.div
+   138→          initial={{ opacity: 0, x: -10 }}
+   139→          animate={{ opacity: 1, x: 0 }}
+   140→          transition={{ duration: 0.3, delay: node.depth * 0.1 }}
+   141→          className={cn(
+   142→            'rounded-lg border px-3 py-2 transition-colors',
+   143→            nodeColor
+   144→          )}
+   145→        >
+   146→          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+   147→            <span className="font-mono text-sm font-semibold text-foreground truncate">
+   148→              {node.mutation}
+   149→            </span>
+   150→            <span className={cn('text-xs font-bold tabular-nums', scoreColor)}>
+   151→              F={node.fitnessScore > 0 ? '+' : ''}{node.fitnessScore.toFixed(1)}
+   152→            </span>
+   153→            <span className="text-[10px] text-muted-foreground tabular-nums">
+   154→              n={node.visits}
+   155→            </span>
+   156→          </div>
+   157→        </motion.div>
+   158→
+   159→        {node.children.length > 0 && (
+   160→          <div className="mt-1 flex flex-col">
+   161→            {node.children.map((child, idx) => (
+   162→              <MCTSTreeNode
+   163→                key={child.id}
+   164→                node={child}
+   165→                isLast={idx === node.children.length - 1}
+   166→              />
+   167→            ))}
+   168→          </div>
+   169→        )}
+   170→      </div>
+   171→    </div>
+   172→  );
+   173→}
+   174→
+   175→// --- Epistasis interaction type styling ---
+   176→function epistasisStyle(type: string) {
+   177→  switch (type) {
+   178→    case 'synergistic':
+   179→      return { bg: 'bg-emerald-500/15', text: 'text-emerald-600', border: 'border-emerald-500/30', dot: 'bg-emerald-500' };
+   180→    case 'antagonistic':
+   181→      return { bg: 'bg-rose-500/15', text: 'text-rose-600', border: 'border-rose-500/30', dot: 'bg-rose-500' };
+   182→    case 'additive':
+   183→      return { bg: 'bg-cyan-500/15', text: 'text-cyan-600', border: 'border-cyan-500/30', dot: 'bg-cyan-500' };
+   184→    default:
+   185→      return { bg: 'bg-slate-500/10', text: 'text-slate-500', border: 'border-slate-500/20', dot: 'bg-slate-400' };
+   186→  }
+   187→}
+   188→
+   189→// --- Target info card icon mapping ---
+   190→function targetIcon(targetClass: string) {
+   191→  if (targetClass.includes('Metallo')) return <Atom className="h-4 w-4 text-teal-500" />;
+   192→  if (targetClass.includes('Topoisomerase') || targetClass.includes('Gyrase')) return <Bug className="h-4 w-4 text-amber-500" />;
+   193→  return <Dna className="h-4 w-4 text-rose-500" />;
+   194→}
+   195→
+   196→// --- Fade-in wrapper ---
+   197→const fadeVariants = {
+   198→  hidden: { opacity: 0, y: 12 },
+   199→  visible: (i: number) => ({
+   200→    opacity: 1,
+   201→    y: 0,
+   202→    transition: { duration: 0.4, delay: i * 0.06, ease: 'easeOut' },
+   203→  }),
+   204→};
+   205→
+   206→// --- Custom chart tooltip ---
+   207→function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { mutation: string; fitness: number; type: string } }> }) {
+   208→  if (active && payload && payload.length) {
+   209→    const d = payload[0].payload;
+   210→    return (
+   211→      <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
+   212→        <p className="font-mono font-semibold text-foreground">{d.mutation}</p>
+   213→        <p className={cn('font-bold tabular-nums', fitnessColor(d.fitness))}>
+   214→          Fitness: {d.fitness > 0 ? '+' : ''}{d.fitness.toFixed(1)}
+   215→        </p>
+   216→        <p className="text-muted-foreground capitalize">{d.type}</p>
+   217→      </div>
+   218→    );
+   219→  }
+   220→  return null;
+   221→}
+   222→
+   223→// ============================================================================
+   224→// Main SEFE Panel Component
+   225→// ============================================================================
+   226→export default function SefePanel() {
+   227→  // --- State ---
+   228→  const [selectedTargetId, setSelectedTargetId] = useState<string>('tem1');
+   229→  const [mutationInput, setMutationInput] = useState('');
+   230→  const [results, setResults] = useState<MutationResult[]>([]);
+   231→  const [isAnalyzing, setIsAnalyzing] = useState(false);
+   232→  const [hasRun, setHasRun] = useState(false);
+   233→  const [activeResultTab, setActiveResultTab] = useState('table');
+   234→
+   235→  const selectedTarget = useMemo(
+   236→    () => PROTEIN_TARGETS.find((t) => t.id === selectedTargetId)!,
+   237→    [selectedTargetId]
+   238→  );
+   239→
+   240→  // --- Parse mutation input ---
+   241→  const parseMutations = useCallback((input: string): string[] => {
+   242→    return input
+   243→      .replace(/,/g, '\n')
+   244→      .split(/\n/)
+   245→      .map((s) => s.trim().toUpperCase())
+   246→      .filter((s) => s.length > 0);
+   247→  }, []);
+   248→
+   249→  // --- Add known mutations ---
+   250→  const handleAddKnown = useCallback(() => {
+   251→    const known = KNOWN_MUTATIONS[selectedTargetId] ?? [];
+   252→    // Only add single mutations (skip combinatorial ones with colons)
+   253→    const singles = known.filter((m) => !m.mutation.includes(':')).map((m) => m.mutation);
+   254→    setMutationInput((prev) => {
+   255→      const existing = parseMutations(prev);
+   256→      const merged = [...new Set([...existing, ...singles])];
+   257→      return merged.join('\n');
+   258→    });
+   259→  }, [selectedTargetId, parseMutations]);
+   260→
+   261→  // --- Run analysis ---
+   262→  const handleRunAnalysis = useCallback(async () => {
+   263→    const mutations = parseMutations(mutationInput);
+   264→    if (mutations.length === 0) return;
+   265→
+   266→    setIsAnalyzing(true);
+   267→    setHasRun(false);
+   268→
+   269→    // Simulate computation delay
+   270→    await new Promise((r) => setTimeout(r, 1500));
+   271→
+   272→    const analysisResults = simulateMutationAnalysis(selectedTargetId, mutations);
+   273→    setResults(analysisResults);
+   274→    setIsAnalyzing(false);
+   275→    setHasRun(true);
+   276→    setActiveResultTab('table');
+   277→  }, [mutationInput, selectedTargetId, parseMutations]);
+   278→
+   279→  // --- Reset ---
+   280→  const handleReset = useCallback(() => {
+   281→    setMutationInput('');
+   282→    setResults([]);
+   283→    setHasRun(false);
+   284→    setIsAnalyzing(false);
+   285→  }, []);
+   286→
+   287→  // --- Chart data sorted by fitness descending ---
+   288→  const chartData = useMemo(
+   289→    () =>
+   290→      [...results]
+   291→        .sort((a, b) => b.fitnessScore - a.fitnessScore)
+   292→        .map((r) => ({
+   293→          mutation: r.mutation,
+   294→          fitness: r.fitnessScore,
+   295→          type: r.isCompensatory ? 'compensatory' : Math.abs(r.fitnessScore) < 0.5 ? 'neutral' : 'resistance',
+   296→        })),
+   297→    [results]
+   298→  );
+   299→
+   300→  // --- Bar color helper for chart ---
+   301→  const barColor = (type: string) => {
+   302→    switch (type) {
+   303→      case 'compensatory': return '#10b981'; // emerald-500
+   304→      case 'resistance': return '#f43f5e';   // rose-500
+   305→      default: return '#64748b';              // slate-500
+   306→    }
+   307→  };
+   308→
+   309→  // --- Custom chart tooltip ---
+   310→  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: { mutation: string; fitness: number; type: string } }> }) => {
+   311→    if (active && payload && payload.length) {
+   312→      const d = payload[0].payload;
+   313→      return (
+   314→        <div className="rounded-lg border bg-background px-3 py-2 shadow-lg text-xs">
+   315→          <p className="font-mono font-semibold text-foreground">{d.mutation}</p>
+   316→          <p className={cn('font-bold tabular-nums', fitnessColor(d.fitness))}>
+   317→            Fitness: {d.fitness > 0 ? '+' : ''}{d.fitness.toFixed(1)}
+   318→          </p>
+   319→          <p className="text-muted-foreground capitalize">{d.type}</p>
+   320→        </div>
+   321→      );
+   322→    }
+   323→    return null;
+   324→  };
+   325→
+   326→  return (
+   327→    <TooltipProvider delayDuration={200}>
+   328→      <div className="w-full max-w-5xl mx-auto space-y-6 p-4 md:p-6">
+   329→        {/* ---- Header ---- */}
+   330→        <motion.div
+   331→          initial={{ opacity: 0, y: -8 }}
+   332→          animate={{ opacity: 1, y: 0 }}
+   333→          transition={{ duration: 0.4 }}
+   334→          className="flex flex-col sm:flex-row sm:items-center gap-3"
+   335→        >
+   336→          <div className="flex items-center gap-2.5">
+   337→            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+   338→              <Activity className="h-5 w-5 text-emerald-500" />
+   339→            </div>
+   340→            <div>
+   341→              <h2 className="text-lg font-bold tracking-tight text-foreground">
+   342→                SEFE Module
+   343→              </h2>
+   344→              <p className="text-xs text-muted-foreground leading-tight">
+   345→                Structural Epistatic Fitness Engine
+   346→              </p>
+   347→            </div>
+   348→          </div>
+   349→          <Badge
+   350→            variant="outline"
+   351→            className="w-fit text-[10px] tracking-wide border-emerald-500/30 text-emerald-600 bg-emerald-500/5"
+   352→          >
+   353→            RESISTODIFF-3D
+   354→          </Badge>
+   355→        </motion.div>
+   356→
+   357→        <Separator className="opacity-50" />
+   358→
+   359→        {/* ---- Section 1: Protein Target Selector ---- */}
+   360→        <motion.div variants={fadeVariants} initial="hidden" animate="visible" custom={0}>
+   361→          <Card className="border-slate-200/60 dark:border-slate-700/40">
+   362→            <CardHeader className="pb-3">
+   363→              <div className="flex items-center gap-2">
+   364→                <Target className="h-4 w-4 text-teal-500" />
+   365→                <CardTitle className="text-sm font-semibold">
+   366→                  Protein Target
+   367→                </CardTitle>
+   368→              </div>
+   369→              <CardDescription className="text-xs">
+   370→                Select a protein target for mutational escape analysis
+   371→              </CardDescription>
+   372→            </CardHeader>
+   373→            <CardContent className="space-y-4">
+   374→              <div className="flex flex-col sm:flex-row gap-3">
+   375→                <div className="flex-1">
+   376→                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+   377→                    Target Protein
+   378→                  </Label>
+   379→                  <Select
+   380→                    value={selectedTargetId}
+   381→                    onValueChange={(v) => {
+   382→                      setSelectedTargetId(v);
+   383→                      setResults([]);
+   384→                      setHasRun(false);
+   385→                    }}
+   386→                  >
+   387→                    <SelectTrigger className="w-full">
+   388→                      <SelectValue />
+   389→                    </SelectTrigger>
+   390→                    <SelectContent>
+   391→                      {PROTEIN_TARGETS.map((t) => (
+   392→                        <SelectItem key={t.id} value={t.id}>
+   393→                          <div className="flex items-center gap-2">
+   394→                            {targetIcon(t.targetClass)}
+   395→                            <span>{t.name}</span>
+   396→                          </div>
+   397→                        </SelectItem>
+   398→                      ))}
+   399→                    </SelectContent>
+   400→                  </Select>
+   401→                </div>
+   402→              </div>
+   403→
+   404→              {/* Target info card */}
+   405→              <AnimatePresence mode="wait">
+   406→                <motion.div
+   407→                  key={selectedTargetId}
+   408→                  initial={{ opacity: 0, height: 0 }}
+   409→                  animate={{ opacity: 1, height: 'auto' }}
+   410→                  exit={{ opacity: 0, height: 0 }}
+   411→                  transition={{ duration: 0.3 }}
+   412→                  className="overflow-hidden"
+   413→                >
+   414→                  <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 bg-muted/30 p-4 space-y-3">
+   415→                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   416→                      <Tooltip>
+   417→                        <TooltipTrigger asChild>
+   418→                          <div className="space-y-0.5">
+   419→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   420→                              Class
+   421→                            </p>
+   422→                            <p className="text-xs font-semibold text-foreground">
+   423→                              {selectedTarget.targetClass}
+   424→                            </p>
+   425→                          </div>
+   426→                        </TooltipTrigger>
+   427→                        <TooltipContent>
+   428→                          <p className="text-xs">Protein functional classification</p>
+   429→                        </TooltipContent>
+   430→                      </Tooltip>
+   431→
+   432→                      <Tooltip>
+   433→                        <TooltipTrigger asChild>
+   434→                          <div className="space-y-0.5">
+   435→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   436→                              Organism
+   437→                            </p>
+   438→                            <p className="text-xs font-semibold text-foreground">
+   439→                              {selectedTarget.organism}
+   440→                            </p>
+   441→                          </div>
+   442→                        </TooltipTrigger>
+   443→                        <TooltipContent>
+   444→                          <p className="text-xs">Source organism</p>
+   445→                        </TooltipContent>
+   446→                      </Tooltip>
+   447→
+   448→                      <Tooltip>
+   449→                        <TooltipTrigger asChild>
+   450→                          <div className="space-y-0.5">
+   451→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   452→                              Sequence Length
+   453→                            </p>
+   454→                            <p className="text-xs font-semibold text-foreground tabular-nums">
+   455→                              {selectedTarget.sequenceLength} aa
+   456→                            </p>
+   457→                          </div>
+   458→                        </TooltipTrigger>
+   459→                        <TooltipContent>
+   460→                          <p className="text-xs">Number of amino acid residues</p>
+   461→                        </TooltipContent>
+   462→                      </Tooltip>
+   463→
+   464→                      <Tooltip>
+   465→                        <TooltipTrigger asChild>
+   466→                          <div className="space-y-0.5">
+   467→                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+   468→                              PDB / UniProt
+   469→                            </p>
+   470→                            <p className="text-xs font-semibold text-foreground">
+   471→                              {selectedTarget.pdbId} / {selectedTarget.uniprotId}
+   472→                            </p>
+   473→                          </div>
+   474→                        </TooltipTrigger>
+   475→                        <TooltipContent>
+   476→                          <p className="text-xs">Structure & sequence database IDs</p>
+   477→                        </TooltipContent>
+   478→                      </Tooltip>
+   479→                    </div>
+   480→
+   481→                    <div className="flex flex-wrap gap-1.5">
+   482→                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium self-center mr-1">
+   483→                        Key Residues:
+   484→                      </span>
+   485→                      {selectedTarget.keyResidues.map((r) => (
+   486→                        <Badge
+   487→                          key={r}
+   488→                          variant="outline"
+   489→                          className="text-[10px] px-1.5 py-0 font-mono border-teal-500/30 text-teal-600 bg-teal-500/5"
+   490→                        >
+   491→                          {r}
+   492→                        </Badge>
+   493→                      ))}
+   494→                    </div>
+   495→
+   496→                    <div className="flex items-start gap-2 rounded-md bg-slate-100/60 dark:bg-slate-800/40 p-2.5">
+   497→                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+   498→                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+   499→                        <span className="font-medium text-foreground">Resistance Mechanism: </span>
+   500→                        {selectedTarget.resistanceMechanism}
+   501→                      </p>
+   502→                    </div>
+   503→                  </div>
+   504→                </motion.div>
+   505→              </AnimatePresence>
+   506→            </CardContent>
+   507→          </Card>
+   508→        </motion.div>
+   509→
+   510→        {/* ---- Section 2: Mutation Input ---- */}
+   511→        <motion.div variants={fadeVariants} initial="hidden" animate="visible" custom={1}>
+   512→          <Card className="border-slate-200/60 dark:border-slate-700/40">
+   513→            <CardHeader className="pb-3">
+   514→              <div className="flex items-center gap-2">
+   515→                <FlaskConical className="h-4 w-4 text-amber-500" />
+   516→                <CardTitle className="text-sm font-semibold">
+   517→                  Mutation Input
+   518→                </CardTitle>
+   519→              </div>
+   520→              <CardDescription className="text-xs">
+   521→                Enter point mutations (e.g. G238S, E104K, S83L) — one per line or comma-separated
+   522→              </CardDescription>
+   523→            </CardHeader>
+   524→            <CardContent className="space-y-3">
+   525→              <Label htmlFor="mutation-input" className="sr-only">
+   526→                Mutations
+   527→              </Label>
+   528→              <textarea
+   529→                id="mutation-input"
+   530→                value={mutationInput}
+   531→                onChange={(e) => setMutationInput(e.target.value)}
+   532→                placeholder={"G238S\nE104K\nM182T\nR164S"}
+   533→                rows={4}
+   534→                className={cn(
+   535→                  'flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-xs',
+   536→                  'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+   537→                  'disabled:cursor-not-allowed disabled:opacity-50',
+   538→                  'resize-y min-h-[80px] max-h-[200px]'
+   539→                )}
+   540→                disabled={isAnalyzing}
+   541→              />
+   542→
+   543→              <div className="flex flex-wrap gap-2">
+   544→                <Button
+   545→                  variant="outline"
+   546→                  size="sm"
+   547→                  onClick={handleAddKnown}
+   548→                  disabled={isAnalyzing}
+   549→                  className="text-xs gap-1.5 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700"
+   550→                >
+   551→                  <BookmarkPlus className="h-3.5 w-3.5" />
+   552→                  Add Known Mutations
+   553→                </Button>
+   554→
+   555→                <div className="flex-1" />
+   556→
+   557→                <Button
+   558→                  variant="ghost"
+   559→                  size="sm"
+   560→                  onClick={handleReset}
+   561→                  disabled={isAnalyzing}
+   562→                  className="text-xs gap-1.5 text-muted-foreground"
+   563→                >
+   564→                  <RotateCcw className="h-3.5 w-3.5" />
+   565→                  Reset
+   566→                </Button>
+   567→
+   568→                <Button
+   569→                  size="sm"
+   570→                  onClick={handleRunAnalysis}
+   571→                  disabled={isAnalyzing || parseMutations(mutationInput).length === 0}
+   572→                  className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+   573→                >
+   574→                  {isAnalyzing ? (
+   575→                    <>
+   576→                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+   577→                      Analyzing…
+   578→                    </>
+   579→                  ) : (
+   580→                    <>
+   581→                      <Play className="h-3.5 w-3.5" />
+   582→                      Run Analysis
+   583→                    </>
+   584→                  )}
+   585→                </Button>
+   586→              </div>
+   587→            </CardContent>
+   588→          </Card>
+   589→        </motion.div>
+   590→
+   591→        {/* ---- Sections 3-6: Results ---- */}
+   592→        <AnimatePresence>
+   593→          {(isAnalyzing || hasRun) && (
+   594→            <motion.div
+   595→              initial={{ opacity: 0, y: 16 }}
+   596→              animate={{ opacity: 1, y: 0 }}
+   597→              exit={{ opacity: 0, y: 16 }}
+   598→              transition={{ duration: 0.4 }}
+   599→            >
+   600→              {isAnalyzing ? (
+   601→                /* ---- Loading State ---- */
+   602→                <Card className="border-slate-200/60 dark:border-slate-700/40">
+   603→                  <CardContent className="p-6 space-y-4">
+   604→                    <div className="flex items-center gap-2">
+   605→                      <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+   606→                      <span className="text-sm font-medium text-muted-foreground">
+   607→                        Computing structural epistatic fitness landscape…
+   608→                      </span>
+   609→                    </div>
+   610→                    <div className="space-y-3">
+   611→                      <div className="flex items-center gap-3">
+   612→                        <Skeleton className="h-3 w-24" />
+   613→                        <Skeleton className="h-3 flex-1" />
+   614→                      </div>
+   615→                      <div className="flex items-center gap-3">
+   616→                        <Skeleton className="h-3 w-20" />
+   617→                        <Skeleton className="h-3 flex-1" />
+   618→                      </div>
+   619→                      <div className="flex items-center gap-3">
+   620→                        <Skeleton className="h-3 w-28" />
+   621→                        <Skeleton className="h-3 flex-1" />
+   622→                      </div>
+   623→                      <div className="flex items-center gap-3">
+   624→                        <Skeleton className="h-3 w-16" />
+   625→                        <Skeleton className="h-3 flex-1" />
+   626→                      </div>
+   627→                    </div>
+   628→                    <div className="pt-2">
+   629→                      <Skeleton className="h-48 w-full rounded-lg" />
+   630→                    </div>
+   631→                  </CardContent>
+   632→                </Card>
+   633→              ) : (
+   634→                /* ---- Results Tabs ---- */
+   635→                <Tabs
+   636→                  value={activeResultTab}
+   637→                  onValueChange={setActiveResultTab}
+   638→                  className="w-full"
+   639→                >
+   640→                  <TabsList className="w-full grid grid-cols-4 mb-4 bg-muted/50 h-10">
+   641→                    <TabsTrigger value="table" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   642→                      <Sparkles className="h-3.5 w-3.5 hidden sm:inline-block" />
+   643→                      Results
+   644→                    </TabsTrigger>
+   645→                    <TabsTrigger value="chart" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   646→                      <Activity className="h-3.5 w-3.5 hidden sm:inline-block" />
+   647→                      Fitness Chart
+   648→                    </TabsTrigger>
+   649→                    <TabsTrigger value="epistasis" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   650→                      <Network className="h-3.5 w-3.5 hidden sm:inline-block" />
+   651→                      Epistasis
+   652→                    </TabsTrigger>
+   653→                    <TabsTrigger value="mcts" className="text-xs gap-1.5 data-[state=active]:bg-background">
+   654→                      <TreePine className="h-3.5 w-3.5 hidden sm:inline-block" />
+   655→                      MCTS Tree
+   656→                    </TabsTrigger>
+   657→                  </TabsList>
+   658→
+   659→                  {/* ---- Tab: Results Table ---- */}
+   660→                  <TabsContent value="table" className="mt-0">
+   661→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   662→                      <CardHeader className="pb-3">
+   663→                        <div className="flex items-center justify-between">
+   664→                          <div className="flex items-center gap-2">
+   665→                            <Sparkles className="h-4 w-4 text-emerald-500" />
+   666→                            <CardTitle className="text-sm font-semibold">
+   667→                              Mutation Analysis Results
+   668→                            </CardTitle>
+   669→                          </div>
+   670→                          <Badge variant="outline" className="text-[10px] font-normal">
+   671→                            {results.length} mutation{results.length !== 1 ? 's' : ''}
+   672→                          </Badge>
+   673→                        </div>
+   674→                        <CardDescription className="text-xs">
+   675→                          ΔΔG values in kcal/mol · Fitness score integrates fold stability, catalysis, binding & ESM-2 embeddings
+   676→                        </CardDescription>
+   677→                      </CardHeader>
+   678→                      <CardContent className="p-0">
+   679→                        <ScrollArea className="max-h-[420px]">
+   680→                          <Table>
+   681→                            <TableHeader>
+   682→                              <TableRow className="hover:bg-transparent">
+   683→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground w-[110px]">
+   684→                                  Mutation
+   685→                                </TableHead>
+   686→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center w-[60px]">
+   687→                                  Pos
+   688→                                </TableHead>
+   689→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   690→                                  ΔΔG Fold
+   691→                                </TableHead>
+   692→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   693→                                  ΔΔG Catal.
+   694→                                </TableHead>
+   695→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   696→                                  ΔΔG Bind
+   697→                                </TableHead>
+   698→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   699→                                  ESM-2
+   700→                                </TableHead>
+   701→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   702→                                  Coevol
+   703→                                </TableHead>
+   704→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-right">
+   705→                                  Fitness
+   706→                                </TableHead>
+   707→                                <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   708→                                  Type
+   709→                                </TableHead>
+   710→                              </TableRow>
+   711→                            </TableHeader>
+   712→                            <TableBody>
+   713→                              {results.map((r, i) => {
+   714→                                const badge = fitnessBadgeVariant(r.fitnessScore, r.isCompensatory);
+   715→                                return (
+   716→                                  <motion.tr
+   717→                                    key={r.mutation}
+   718→                                    initial={{ opacity: 0 }}
+   719→                                    animate={{ opacity: 1 }}
+   720→                                    transition={{ delay: i * 0.04 }}
+   721→                                    className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+   722→                                  >
+   723→                                    <TableCell className="py-2.5">
+   724→                                      <span className="font-mono text-xs font-semibold text-foreground">
+   725→                                        {r.mutation}
+   726→                                      </span>
+   727→                                    </TableCell>
+   728→                                    <TableCell className="py-2.5 text-center">
+   729→                                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+   730→                                        {r.position > 0 ? r.position : '—'}
+   731→                                      </span>
+   732→                                    </TableCell>
+   733→                                    <TableCell className="py-2.5 text-right">
+   734→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   735→                                        {r.ddgFold > 0 ? '+' : ''}{r.ddgFold.toFixed(1)}
+   736→                                      </span>
+   737→                                    </TableCell>
+   738→                                    <TableCell className="py-2.5 text-right">
+   739→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   740→                                        {r.ddgCatalysis > 0 ? '+' : ''}{r.ddgCatalysis.toFixed(1)}
+   741→                                      </span>
+   742→                                    </TableCell>
+   743→                                    <TableCell className="py-2.5 text-right">
+   744→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   745→                                        {r.ddgBinding > 0 ? '+' : ''}{r.ddgBinding.toFixed(1)}
+   746→                                      </span>
+   747→                                    </TableCell>
+   748→                                    <TableCell className="py-2.5 text-right">
+   749→                                      <span className="font-mono text-xs tabular-nums text-foreground">
+   750→                                        {r.esm2Score > 0 ? '+' : ''}{r.esm2Score.toFixed(1)}
+   751→                                      </span>
+   752→                                    </TableCell>
+   753→                                    <TableCell className="py-2.5 text-right">
+   754→                                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+   755→                                        {r.coevolScore.toFixed(2)}
+   756→                                      </span>
+   757→                                    </TableCell>
+   758→                                    <TableCell className="py-2.5 text-right">
+   759→                                      <span
+   760→                                        className={cn(
+   761→                                          'font-mono text-xs font-bold tabular-nums',
+   762→                                          fitnessColor(r.fitnessScore)
+   763→                                        )}
+   764→                                      >
+   765→                                        {r.fitnessScore > 0 ? '+' : ''}{r.fitnessScore.toFixed(1)}
+   766→                                      </span>
+   767→                                    </TableCell>
+   768→                                    <TableCell className="py-2.5 text-center">
+   769→                                      <Badge
+   770→                                        variant="outline"
+   771→                                        className={cn(
+   772→                                          'text-[10px] px-1.5 py-0 font-medium border',
+   773→                                          badge.className
+   774→                                        )}
+   775→                                      >
+   776→                                        {badge.label}
+   777→                                      </Badge>
+   778→                                    </TableCell>
+   779→                                  </motion.tr>
+   780→                                );
+   781→                              })}
+   782→                            </TableBody>
+   783→                          </Table>
+   784→                        </ScrollArea>
+   785→                      </CardContent>
+   786→                    </Card>
+   787→                  </TabsContent>
+   788→
+   789→                  {/* ---- Tab: Fitness Bar Chart ---- */}
+   790→                  <TabsContent value="chart" className="mt-0">
+   791→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   792→                      <CardHeader className="pb-3">
+   793→                        <div className="flex items-center gap-2">
+   794→                          <Activity className="h-4 w-4 text-emerald-500" />
+   795→                          <CardTitle className="text-sm font-semibold">
+   796→                            Fitness Score Landscape
+   797→                          </CardTitle>
+   798→                        </div>
+   799→                        <CardDescription className="text-xs">
+   800→                          Combined fitness scores ranked by mutational escape potential
+   801→                        </CardDescription>
+   802→                      </CardHeader>
+   803→                      <CardContent>
+   804→                        {/* Legend */}
+   805→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+   806→                          <div className="flex items-center gap-1.5">
+   807→                            <div className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+   808→                            <span className="text-[10px] text-muted-foreground">Resistance</span>
+   809→                          </div>
+   810→                          <div className="flex items-center gap-1.5">
+   811→                            <div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+   812→                            <span className="text-[10px] text-muted-foreground">Compensatory</span>
+   813→                          </div>
+   814→                          <div className="flex items-center gap-1.5">
+   815→                            <div className="h-2.5 w-2.5 rounded-sm bg-slate-500" />
+   816→                            <span className="text-[10px] text-muted-foreground">Neutral</span>
+   817→                          </div>
+   818→                        </div>
+   819→
+   820→                        {chartData.length > 0 ? (
+   821→                          <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 36 + 40)}>
+   822→                            <BarChart
+   823→                              data={chartData}
+   824→                              layout="vertical"
+   825→                              margin={{ top: 0, right: 40, bottom: 0, left: 10 }}
+   826→                            >
+   827→                              <XAxis
+   828→                                type="number"
+   829→                                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+   830→                                axisLine={{ stroke: 'hsl(var(--border))' }}
+   831→                                tickLine={false}
+   832→                              />
+   833→                              <YAxis
+   834→                                type="category"
+   835→                                dataKey="mutation"
+   836→                                tick={{ fontSize: 11, fontFamily: 'monospace', fill: 'hsl(var(--foreground))' }}
+   837→                                axisLine={false}
+   838→                                tickLine={false}
+   839→                                width={120}
+   840→                              />
+   841→                              <RechartsTooltip content={<ChartTooltip />} />
+   842→                              <Bar
+   843→                                dataKey="fitness"
+   844→                                radius={[0, 4, 4, 0]}
+   845→                                barSize={20}
+   846→                                animationDuration={800}
+   847→                              >
+   848→                                {chartData.map((entry, index) => (
+   849→                                  <Cell
+   850→                                    key={index}
+   851→                                    fill={barColor(entry.type)}
+   852→                                    fillOpacity={0.8}
+   853→                                  />
+   854→                                ))}
+   855→                              </Bar>
+   856→                            </BarChart>
+   857→                          </ResponsiveContainer>
+   858→                        ) : (
+   859→                          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+   860→                            No results to display. Run an analysis first.
+   861→                          </div>
+   862→                        )}
+   863→                      </CardContent>
+   864→                    </Card>
+   865→                  </TabsContent>
+   866→
+   867→                  {/* ---- Tab: Epistatic Interaction Heatmap ---- */}
+   868→                  <TabsContent value="epistasis" className="mt-0">
+   869→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+   870→                      <CardHeader className="pb-3">
+   871→                        <div className="flex items-center gap-2">
+   872→                          <Network className="h-4 w-4 text-amber-500" />
+   873→                          <CardTitle className="text-sm font-semibold">
+   874→                            Epistatic Interaction Map
+   875→                          </CardTitle>
+   876→                        </div>
+   877→                        <CardDescription className="text-xs">
+   878→                          Pairwise epistatic interactions between mutations · Individual vs. combined fitness effects
+   879→                        </CardDescription>
+   880→                      </CardHeader>
+   881→                      <CardContent>
+   882→                        {/* Legend */}
+   883→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+   884→                          <div className="flex items-center gap-1.5">
+   885→                            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+   886→                            <span className="text-[10px] text-muted-foreground">Synergistic</span>
+   887→                          </div>
+   888→                          <div className="flex items-center gap-1.5">
+   889→                            <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+   890→                            <span className="text-[10px] text-muted-foreground">Antagonistic</span>
+   891→                          </div>
+   892→                          <div className="flex items-center gap-1.5">
+   893→                            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500" />
+   894→                            <span className="text-[10px] text-muted-foreground">Additive</span>
+   895→                          </div>
+   896→                          <div className="flex items-center gap-1.5">
+   897→                            <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+   898→                            <span className="text-[10px] text-muted-foreground">Neutral</span>
+   899→                          </div>
+   900→                        </div>
+   901→
+   902→                        {/* Epistasis grid */}
+   903→                        <ScrollArea className="max-h-[400px]">
+   904→                          <div className="rounded-lg border border-border/50 overflow-hidden">
+   905→                            {/* Header */}
+   906→                            <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr] bg-muted/50 px-4 py-2.5 border-b border-border/50">
+   907→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+   908→                                Mutation 1
+   909→                              </span>
+   910→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+   911→                                Mutation 2
+   912→                              </span>
+   913→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   914→                                Individual Σ
+   915→                              </span>
+   916→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   917→                                Combined
+   918→                              </span>
+   919→                              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center">
+   920→                                Interaction
+   921→                              </span>
+   922→                            </div>
+   923→
+   924→                            {EPISTATIC_PAIRS.map((pair, i) => {
+   925→                              const style = epistasisStyle(pair.type);
+   926→                              return (
+   927→                                <motion.div
+   928→                                  key={`${pair.mut1}-${pair.mut2}`}
+   929→                                  initial={{ opacity: 0, x: -8 }}
+   930→                                  animate={{ opacity: 1, x: 0 }}
+   931→                                  transition={{ delay: i * 0.06 }}
+   932→                                  className={cn(
+   933→                                    'grid grid-cols-[1fr_1fr_1fr_1fr_1fr] items-center px-4 py-3 border-b border-border/30 last:border-0',
+   934→                                    'hover:bg-muted/20 transition-colors'
+   935→                                  )}
+   936→                                >
+   937→                                  <span className="font-mono text-xs font-semibold text-foreground">
+   938→                                    {pair.mut1}
+   939→                                  </span>
+   940→                                  <span className="font-mono text-xs font-semibold text-foreground">
+   941→                                    {pair.mut2}
+   942→                                  </span>
+   943→                                  <span className="font-mono text-xs text-center tabular-nums text-muted-foreground">
+   944→                                    {pair.individual.toFixed(1)}
+   945→                                  </span>
+   946→                                  <span className="font-mono text-xs text-center tabular-nums font-semibold text-foreground">
+   947→                                    {pair.combined.toFixed(1)}
+   948→                                  </span>
+   949→                                  <div className="flex items-center justify-center gap-1.5">
+   950→                                    <span
+   951→                                      className={cn(
+   952→                                        'font-mono text-xs tabular-nums font-bold',
+   953→                                        style.text
+   954→                                      )}
+   955→                                    >
+   956→                                      {pair.interaction > 0 ? '+' : ''}{pair.interaction.toFixed(1)}
+   957→                                    </span>
+   958→                                    <Badge
+   959→                                      variant="outline"
+   960→                                      className={cn(
+   961→                                        'text-[9px] px-1.5 py-0 border capitalize font-medium',
+   962→                                        style.bg,
+   963→                                        style.text,
+   964→                                        style.border
+   965→                                      )}
+   966→                                    >
+   967→                                      {pair.type}
+   968→                                    </Badge>
+   969→                                  </div>
+   970→                                </motion.div>
+   971→                              );
+   972→                            })}
+   973→                          </div>
+   974→                        </ScrollArea>
+   975→
+   976→                        {/* Interaction strength visual bar */}
+   977→                        <div className="mt-4 space-y-2">
+   978→                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+   979→                            Interaction Strength
+   980→                          </p>
+   981→                          <div className="flex flex-col gap-1.5">
+   982→                            {EPISTATIC_PAIRS.map((pair) => {
+   983→                              const style = epistasisStyle(pair.type);
+   984→                              const absInteraction = Math.abs(pair.interaction);
+   985→                              const maxInteraction = 2.4;
+   986→                              const widthPct = (absInteraction / maxInteraction) * 100;
+   987→                              return (
+   988→                                <div
+   989→                                  key={`${pair.mut1}-${pair.mut2}-bar`}
+   990→                                  className="flex items-center gap-2"
+   991→                                >
+   992→                                  <span className="font-mono text-[10px] text-muted-foreground w-[100px] truncate shrink-0">
+   993→                                    {pair.mut1}+{pair.mut2}
+   994→                                  </span>
+   995→                                  <div className="flex-1 h-2.5 rounded-full bg-muted/50 overflow-hidden">
+   996→                                    <motion.div
+   997→                                      initial={{ width: 0 }}
+   998→                                      animate={{ width: `${widthPct}%` }}
+   999→                                      transition={{ duration: 0.6, delay: 0.3 }}
+  1000→                                      className={cn('h-full rounded-full', style.dot)}
+  1001→                                    />
+  1002→                                  </div>
+  1003→                                  <span className={cn('font-mono text-[10px] tabular-nums w-[36px] text-right font-medium', style.text)}>
+  1004→                                    {pair.interaction > 0 ? '+' : ''}{pair.interaction.toFixed(1)}
+  1005→                                  </span>
+  1006→                                </div>
+  1007→                              );
+  1008→                            })}
+  1009→                          </div>
+  1010→                        </div>
+  1011→                      </CardContent>
+  1012→                    </Card>
+  1013→                  </TabsContent>
+  1014→
+  1015→                  {/* ---- Tab: MCTS Tree ---- */}
+  1016→                  <TabsContent value="mcts" className="mt-0">
+  1017→                    <Card className="border-slate-200/60 dark:border-slate-700/40">
+  1018→                      <CardHeader className="pb-3">
+  1019→                        <div className="flex items-center justify-between">
+  1020→                          <div className="flex items-center gap-2">
+  1021→                            <TreePine className="h-4 w-4 text-teal-500" />
+  1022→                            <CardTitle className="text-sm font-semibold">
+  1023→                              MCTS Exploration Tree
+  1024→                            </CardTitle>
+  1025→                          </div>
+  1026→                          <Badge variant="outline" className="text-[10px] font-normal border-teal-500/30 text-teal-600 bg-teal-500/5">
+  1027→                            Monte Carlo Tree Search
+  1028→                          </Badge>
+  1029→                        </div>
+  1030→                        <CardDescription className="text-xs">
+  1031→                          Mutational escape trajectory exploration · Nodes ranked by visit count (n) and cumulative fitness (F)
+  1032→                        </CardDescription>
+  1033→                      </CardHeader>
+  1034→                      <CardContent>
+  1035→                        {/* Legend */}
+  1036→                        <div className="flex flex-wrap items-center gap-4 mb-4">
+  1037→                          <div className="flex items-center gap-1.5">
+  1038→                            <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+  1039→                            <span className="text-[10px] text-muted-foreground">Resistance Path</span>
+  1040→                          </div>
+  1041→                          <div className="flex items-center gap-1.5">
+  1042→                            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+  1043→                            <span className="text-[10px] text-muted-foreground">Compensatory</span>
+  1044→                          </div>
+  1045→                          <div className="flex items-center gap-1.5">
+  1046→                            <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+  1047→                            <span className="text-[10px] text-muted-foreground">Deleterious / Low-Fitness</span>
+  1048→                          </div>
+  1049→                          <div className="flex items-center gap-1.5">
+  1050→                            <CircleDot className="h-3 w-3 text-muted-foreground" />
+  1051→                            <span className="text-[10px] text-muted-foreground">Node size ∝ visit count</span>
+  1052→                          </div>
+  1053→                        </div>
+  1054→
+  1055→                        {/* Tree visualization */}
+  1056→                        <ScrollArea className="max-h-[500px] rounded-lg border border-border/30 bg-muted/10 p-4">
+  1057→                          <div className="min-w-[320px]">
+  1058→                            {/* Root node */}
+  1059→                            <motion.div
+  1060→                              initial={{ opacity: 0, scale: 0.95 }}
+  1061→                              animate={{ opacity: 1, scale: 1 }}
+  1062→                              transition={{ duration: 0.4 }}
+  1063→                              className="mb-1"
+  1064→                            >
+  1065→                              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/60 px-4 py-2.5">
+  1066→                                <div className="h-3 w-3 rounded-full bg-slate-400" />
+  1067→                                <span className="font-mono text-sm font-bold text-foreground">
+  1068→                                  {DEMO_MCTS_TREE.mutation}
+  1069→                                </span>
+  1070→                                <span className="text-[10px] text-muted-foreground tabular-nums">
+  1071→                                  n={DEMO_MCTS_TREE.visits}
+  1072→                                </span>
+  1073→                              </div>
+  1074→                            </motion.div>
+  1075→
+  1076→                            {/* Child tree */}
+  1077→                            <div className="ml-4 mt-1 border-l-2 border-slate-200 dark:border-slate-700 pl-4">
+  1078→                              {DEMO_MCTS_TREE.children.map((child, idx) => (
+  1079→                                <MCTSTreeNode
+  1080→                                  key={child.id}
+  1081→                                  node={child}
+  1082→                                  isLast={idx === DEMO_MCTS_TREE.children.length - 1}
+  1083→                                />
+  1084→                              ))}
+  1085→                            </div>
+  1086→                          </div>
+  1087→                        </ScrollArea>
+  1088→
+  1089→                        {/* Summary stats */}
+  1090→                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+  1091→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1092→                            <p className="text-lg font-bold tabular-nums text-foreground">
+  1093→                              {countNodes(DEMO_MCTS_TREE)}
+  1094→                            </p>
+  1095→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1096→                              Total Nodes
+  1097→                            </p>
+  1098→                          </div>
+  1099→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1100→                            <p className="text-lg font-bold tabular-nums text-rose-500">
+  1101→                              {countResistanceNodes(DEMO_MCTS_TREE)}
+  1102→                            </p>
+  1103→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1104→                              Resistance
+  1105→                            </p>
+  1106→                          </div>
+  1107→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1108→                            <p className="text-lg font-bold tabular-nums text-foreground">
+  1109→                              {maxDepth(DEMO_MCTS_TREE)}
+  1110→                            </p>
+  1111→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1112→                              Max Depth
+  1113→                            </p>
+  1114→                          </div>
+  1115→                          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-center">
+  1116→                            <p className="text-lg font-bold tabular-nums text-rose-500">
+  1117→                              {bestFitness(DEMO_MCTS_TREE).toFixed(1)}
+  1118→                            </p>
+  1119→                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+  1120→                              Best Fitness
+  1121→                            </p>
+  1122→                          </div>
+  1123→                        </div>
+  1124→                      </CardContent>
+  1125→                    </Card>
+  1126→                  </TabsContent>
+  1127→                </Tabs>
+  1128→              )}
+  1129→            </motion.div>
+  1130→          )}
+  1131→        </AnimatePresence>
+  1132→
+  1133→        {/* ---- Footer hint ---- */}
+  1134→        {results.length > 0 && (
+  1135→          <motion.p
+  1136→            initial={{ opacity: 0 }}
+  1137→            animate={{ opacity: 1 }}
+  1138→            className="text-center text-[10px] text-muted-foreground pb-2"
+  1139→          >
+  1140→            SEFE v1.0 · Fitness scores are unitless composite metrics · ΔΔG in kcal/mol
+  1141→          </motion.p>
+  1142→        )}
+  1143→      </div>
+  1144→    </TooltipProvider>
+  1145→  );
+  1146→}
+  1147→
+  1148→// --- MCTS Tree helpers ---
+  1149→function countNodes(node: MCTSNode): number {
+  1150→  return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0);
+  1151→}
+  1152→
+  1153→function countResistanceNodes(node: MCTSNode): number {
+  1154→  return (
+  1155→    (node.isResistance ? 1 : 0) +
+  1156→    node.children.reduce((sum, c) => sum + countResistanceNodes(c), 0)
+  1157→  );
+  1158→}
+  1159→
+  1160→function maxDepth(node: MCTSNode): number {
+  1161→  if (node.children.length === 0) return node.depth;
+  1162→  return Math.max(...node.children.map(maxDepth));
+  1163→}
+  1164→
+  1165→function bestFitness(node: MCTSNode): number {
+  1166→  const childBest = node.children.length > 0
+  1167→    ? Math.max(...node.children.map(bestFitness))
+  1168→    : -Infinity;
+  1169→  return Math.max(node.fitnessScore, childBest);
+  1170→}
+  1171→
