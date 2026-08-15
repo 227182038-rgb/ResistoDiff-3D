@@ -1,0 +1,748 @@
+    51→  },
+    52→};
+    53→
+    54→const scaleInVariants = {
+    55→  hidden: { opacity: 0, scale: 0.95 },
+    56→  visible: {
+    57→    opacity: 1,
+    58→    scale: 1,
+    59→    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+    60→  },
+    61→};
+    62→
+    63→// ============================================================================
+    64→// Data
+    65→// ============================================================================
+    66→
+    67→const METRICS = [
+    68→  {
+    69→    label: 'Total Analyses',
+    70→    value: '847',
+    71→    icon: TrendingUp,
+    72→    color: 'text-emerald-500',
+    73→    bg: 'bg-emerald-500/10',
+    74→    trend: '+12.3%',
+    75→  },
+    76→  {
+    77→    label: 'Mutations Scored',
+    78→    value: '12,453',
+    79→    icon: Dna,
+    80→    color: 'text-teal-500',
+    81→    bg: 'bg-teal-500/10',
+    82→    trend: null,
+    83→  },
+    84→  {
+    85→    label: 'Pockets Detected',
+    86→    value: '2,156',
+    87→    icon: Atom,
+    88→    color: 'text-amber-500',
+    89→    bg: 'bg-amber-500/10',
+    90→    trend: null,
+    91→  },
+    92→  {
+    93→    label: 'Molecules Generated',
+    94→    value: '4,892',
+    95→    icon: FlaskRound,
+    96→    color: 'text-cyan-500',
+    97→    bg: 'bg-cyan-500/10',
+    98→    trend: null,
+    99→  },
+   100→];
+   101→
+   102→const MODULES = [
+   103→  {
+   104→    name: 'SEFE',
+   105→    fullName: 'Structural Epistatic Fitness Engine',
+   106→    icon: Dna,
+   107→    color: 'emerald',
+   108→    description:
+   109→      'Predicts fitness effects of mutations using ESM-2 protein language models, coevolutionary analysis, and thermodynamic ΔΔG scoring across combinatorial mutational landscapes.',
+   110→  },
+   111→  {
+   112→    name: 'DAPM',
+   113→    fullName: 'Dynamic Allosteric Pocket Miner',
+   114→    icon: ScanSearch,
+   115→    color: 'amber',
+   116→    description:
+   117→      'Detects cryptic and allosteric drug-binding pockets via molecular dynamics-enhanced geometric analysis with ensemble-based druggability scoring.',
+   118→  },
+   119→  {
+   120→    name: 'A-SE3Diff',
+   121→    fullName: 'Counter-Inhibitor Diffuser',
+   122→    icon: FlaskConical,
+   123→    color: 'cyan',
+   124→    description:
+   125→      'Generates novel 3D molecular candidates using equivariant SE(3) diffusion models conditioned on pocket geometry and pharmacophore constraints.',
+   126→  },
+   127→];
+   128→
+   129→const TIMELINE_EVENTS = [
+   130→  {
+   131→    description: 'Completed SEFE analysis on TEM-1',
+   132→    time: '2 hours ago',
+   133→    module: 'SEFE',
+   134→    moduleColor: 'bg-emerald-500',
+   135→  },
+   136→  {
+   137→    description: 'Detected 4 cryptic pockets in NDM-1',
+   138→    time: '5 hours ago',
+   139→    module: 'DAPM',
+   140→    moduleColor: 'bg-amber-500',
+   141→  },
+   142→  {
+   143→    description: 'Generated 6 counter-inhibitor candidates for TEM-1 Pocket 2',
+   144→    time: '1 day ago',
+   145→    module: 'A-SE3Diff',
+   146→    moduleColor: 'bg-cyan-500',
+   147→  },
+   148→  {
+   149→    description: 'MCTS trajectory search completed (1,247 nodes)',
+   150→    time: '2 days ago',
+   151→    module: 'SEFE',
+   152→    moduleColor: 'bg-emerald-500',
+   153→  },
+   154→  {
+   155→    description: 'New protein target added: DNA Gyrase A',
+   156→    time: '3 days ago',
+   157→    module: 'System',
+   158→    moduleColor: 'bg-slate-500',
+   159→  },
+   160→];
+   161→
+   162→const ROADMAP_PHASES = [
+   163→  { name: 'Phase 1', label: 'MVP — Core Pipeline', status: 'complete' as const },
+   164→  { name: 'Phase 2', label: 'Validation & Benchmarks', status: 'complete' as const },
+   165→  { name: 'Phase 3', label: 'Multi-Target Expansion', status: 'in-progress' as const },
+   166→  { name: 'Phase 4', label: 'Clinical Integration', status: 'upcoming' as const },
+   167→  { name: 'Phase 5', label: 'Platform Launch', status: 'upcoming' as const },
+   168→];
+   169→
+   170→// ============================================================================
+   171→// Color Helpers
+   172→// ============================================================================
+   173→
+   174→const moduleColorMap: Record<string, { border: string; bg: string; badge: string; text: string; icon: string }> = {
+   175→  emerald: {
+   176→    border: 'border-emerald-500/30',
+   177→    bg: 'bg-emerald-500/5',
+   178→    badge: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+   179→    text: 'text-emerald-600',
+   180→    icon: 'text-emerald-500',
+   181→  },
+   182→  amber: {
+   183→    border: 'border-amber-500/30',
+   184→    bg: 'bg-amber-500/5',
+   185→    badge: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+   186→    text: 'text-amber-600',
+   187→    icon: 'text-amber-500',
+   188→  },
+   189→  cyan: {
+   190→    border: 'border-cyan-500/30',
+   191→    bg: 'bg-cyan-500/5',
+   192→    badge: 'bg-cyan-500/15 text-cyan-600 border-cyan-500/30',
+   193→    text: 'text-cyan-600',
+   194→    icon: 'text-cyan-500',
+   195→  },
+   196→};
+   197→
+   198→// ============================================================================
+   199→// Sub-Components
+   200→// ============================================================================
+   201→
+   202→function HeroHeader() {
+   203→  return (
+   204→    <motion.section
+   205→      variants={itemVariants}
+   206→      className="relative overflow-hidden rounded-2xl border border-slate-200/60 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-10 sm:px-10 sm:py-14"
+   207→    >
+   208→      {/* Decorative grid background */}
+   209→      <div className="pointer-events-none absolute inset-0 opacity-[0.04]">
+   210→        <div
+   211→          className="h-full w-full"
+   212→          style={{
+   213→            backgroundImage:
+   214→              'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)',
+   215→            backgroundSize: '40px 40px',
+   216→          }}
+   217→        />
+   218→      </div>
+   219→      {/* Decorative glow orbs */}
+   220→      <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
+   221→      <div className="pointer-events-none absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+   222→      <div className="pointer-events-none absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/5 blur-3xl" />
+   223→
+   224→      <div className="relative z-10">
+   225→        <div className="mb-4 flex items-center gap-3">
+   226→          <Badge
+   227→            variant="outline"
+   228→            className="border-emerald-500/30 bg-emerald-500/10 font-mono text-[11px] tracking-wider text-emerald-400 sm:text-xs"
+   229→          >
+   230→            RD3D-2026-SPEC-V1
+   231→          </Badge>
+   232→        </div>
+   233→        <h1 className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+   234→          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+   235→            ResistoDiff-3D
+   236→          </span>
+   237→        </h1>
+   238→        <p className="max-w-3xl text-sm leading-relaxed text-slate-400 sm:text-base">
+   239→          Multi-Scale Structural Physics &amp; Geometric Deep Learning Framework for Antimicrobial Resistance Mutational
+   240→          Escape Prediction
+   241→        </p>
+   242→      </div>
+   243→    </motion.section>
+   244→  );
+   245→}
+   246→
+   247→function MetricCard({
+   248→  metric,
+   249→  index,
+   250→}: {
+   251→  metric: (typeof METRICS)[number];
+   252→  index: number;
+   253→}) {
+   254→  const Icon = metric.icon;
+   255→  return (
+   256→    <motion.div variants={itemVariants} className={cn(index === 0 && 'sm:col-span-1')}>
+   257→      <Card className="group relative overflow-hidden border-slate-200/60 bg-white transition-shadow hover:shadow-md">
+   258→        <CardContent className="p-5">
+   259→          <div className="flex items-start justify-between">
+   260→            <div className="space-y-1">
+   261→              <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+   262→                {metric.label}
+   263→              </p>
+   264→              <p className={cn('text-3xl font-bold tracking-tight sm:text-3xl', metric.color)}>
+   265→                {metric.value}
+   266→              </p>
+   267→            </div>
+   268→            <div className={cn('rounded-xl p-2.5', metric.bg)}>
+   269→              <Icon className={cn('h-5 w-5', metric.color)} />
+   270→            </div>
+   271→          </div>
+   272→          {metric.trend && (
+   273→            <div className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
+   274→              <TrendingUp className="h-3 w-3" />
+   275→              <span className="font-medium">{metric.trend} this week</span>
+   276→            </div>
+   277→          )}
+   278→        </CardContent>
+   279→      </Card>
+   280→    </motion.div>
+   281→  );
+   282→}
+   283→
+   284→function KeyMetricsRow() {
+   285→  return (
+   286→    <motion.section variants={containerVariants} initial="hidden" animate="visible">
+   287→      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+   288→        {METRICS.map((metric, i) => (
+   289→          <MetricCard key={metric.label} metric={metric} index={i} />
+   290→        ))}
+   291→      </div>
+   292→    </motion.section>
+   293→  );
+   294→}
+   295→
+   296→function ModuleStatusCards() {
+   297→  return (
+   298→    <motion.section variants={itemVariants}>
+   299→      <div className="mb-4 flex items-center gap-2">
+   300→        <Layers className="h-4 w-4 text-slate-500" />
+   301→        <h2 className="text-sm font-semibold tracking-wide text-slate-700 uppercase sm:text-base">
+   302→          Pipeline Modules
+   303→        </h2>
+   304→      </div>
+   305→      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   306→        {MODULES.map((mod) => {
+   307→          const Icon = mod.icon;
+   308→          const colors = moduleColorMap[mod.color];
+   309→          return (
+   310→            <motion.div key={mod.name} variants={scaleInVariants}>
+   311→              <Card
+   312→                className={cn(
+   313→                  'group relative overflow-hidden border transition-all hover:shadow-md',
+   314→                  colors.border,
+   315→                  colors.bg
+   316→                )}
+   317→              >
+   318→                <CardHeader className="pb-3">
+   319→                  <div className="flex items-start justify-between">
+   320→                    <div className="flex items-center gap-3">
+   321→                      <div
+   322→                        className={cn(
+   323→                          'flex h-10 w-10 items-center justify-center rounded-lg',
+   324→                          mod.color === 'emerald' && 'bg-emerald-500/10',
+   325→                          mod.color === 'amber' && 'bg-amber-500/10',
+   326→                          mod.color === 'cyan' && 'bg-cyan-500/10'
+   327→                        )}
+   328→                      >
+   329→                        <Icon className={cn('h-5 w-5', colors.icon)} />
+   330→                      </div>
+   331→                      <div>
+   332→                        <CardTitle className="text-base font-bold">{mod.name}</CardTitle>
+   333→                        <CardDescription className="text-[11px] font-medium">
+   334→                          {mod.fullName}
+   335→                        </CardDescription>
+   336→                      </div>
+   337→                    </div>
+   338→                    <Badge
+   339→                      variant="outline"
+   340→                      className={cn(
+   341→                        'border bg-white/80 text-[10px] font-semibold uppercase tracking-wider',
+   342→                        colors.badge
+   343→                      )}
+   344→                    >
+   345→                      <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+   346→                      Ready
+   347→                    </Badge>
+   348→                  </div>
+   349→                </CardHeader>
+   350→                <CardContent className="pt-0">
+   351→                  <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-slate-500">
+   352→                    {mod.description}
+   353→                  </p>
+   354→                  <Button
+   355→                    size="sm"
+   356→                    variant="outline"
+   357→                    className={cn(
+   358→                      'w-full border text-xs font-medium transition-colors',
+   359→                      colors.border,
+   360→                      colors.text,
+   361→                      'hover:bg-white/50'
+   362→                    )}
+   363→                  >
+   364→                    Launch {mod.name}
+   365→                    <ArrowRight className="ml-1.5 h-3 w-3" />
+   366→                  </Button>
+   367→                </CardContent>
+   368→              </Card>
+   369→            </motion.div>
+   370→          );
+   371→        })}
+   372→      </div>
+   373→    </motion.section>
+   374→  );
+   375→}
+   376→
+   377→function ArchitectureDiagram() {
+   378→  const layers = [
+   379→    {
+   380→      name: 'User Interface Layer',
+   381→      items: [
+   382→        { label: 'React / Next.js Dashboard', icon: LayoutDashboard },
+   383→        { label: 'Mol* 3D Engine', icon: Cuboid },
+   384→      ],
+   385→      color: 'emerald' as const,
+   386→    },
+   387→    {
+   388→      name: 'API & Orchestration Layer',
+   389→      items: [
+   390→        { label: 'FastAPI Gateway', icon: Server },
+   391→        { label: 'Ray Scheduler', icon: Server },
+   392→        { label: 'Redis Queue', icon: Database },
+   393→      ],
+   394→      color: 'slate' as const,
+   395→    },
+   396→    {
+   397→      name: 'Computational Core',
+   398→      items: [
+   399→        { label: 'SEFE Engine', icon: Dna },
+   400→        { label: 'DAPM Engine', icon: ScanSearch },
+   401→        { label: 'A-SE3Diff Engine', icon: FlaskConical },
+   402→      ],
+   403→      color: 'amber' as const,
+   404→      highlight: true,
+   405→    },
+   406→    {
+   407→      name: 'Data & Storage',
+   408→      items: [
+   409→        { label: 'PostgreSQL', icon: Database },
+   410→        { label: 'MinIO Object Store', icon: Box },
+   411→        { label: 'Neo4j Graph DB', icon: GitBranch },
+   412→      ],
+   413→      color: 'slate' as const,
+   414→    },
+   415→  ];
+   416→
+   417→  const colorStyles: Record<string, { layerBg: string; layerBorder: string; itemBg: string; itemBorder: string; iconColor: string; itemText: string; layerLabel: string }> = {
+   418→    emerald: {
+   419→      layerBg: 'bg-emerald-500/5',
+   420→      layerBorder: 'border-emerald-500/20',
+   421→      itemBg: 'bg-emerald-500/10',
+   422→      itemBorder: 'border-emerald-500/20',
+   423→      iconColor: 'text-emerald-500',
+   424→      itemText: 'text-emerald-700',
+   425→      layerLabel: 'text-emerald-600',
+   426→    },
+   427→    slate: {
+   428→      layerBg: 'bg-slate-500/5',
+   429→      layerBorder: 'border-slate-300/30',
+   430→      itemBg: 'bg-slate-500/5',
+   431→      itemBorder: 'border-slate-300/25',
+   432→      iconColor: 'text-slate-500',
+   433→      itemText: 'text-slate-700',
+   434→      layerLabel: 'text-slate-600',
+   435→    },
+   436→    amber: {
+   437→      layerBg: 'bg-amber-500/10',
+   438→      layerBorder: 'border-amber-500/30',
+   439→      itemBg: 'bg-amber-500/10',
+   440→      itemBorder: 'border-amber-500/25',
+   441→      iconColor: 'text-amber-600',
+   442→      itemText: 'text-amber-800',
+   443→      layerLabel: 'text-amber-600',
+   444→    },
+   445→  };
+   446→
+   447→  return (
+   448→    <motion.section variants={itemVariants}>
+   449→      <Card className="overflow-hidden border-slate-200/60 bg-white">
+   450→        <CardHeader className="pb-3">
+   451→          <div className="flex items-center gap-2">
+   452→            <Server className="h-4 w-4 text-slate-500" />
+   453→            <CardTitle className="text-sm font-semibold tracking-wide uppercase sm:text-base">
+   454→              System Architecture
+   455→            </CardTitle>
+   456→          </div>
+   457→          <CardDescription>4-layer microservice architecture for scalable AMR analysis</CardDescription>
+   458→        </CardHeader>
+   459→        <CardContent>
+   460→          <div className="relative flex flex-col gap-1">
+   461→            {layers.map((layer, layerIdx) => {
+   462→              const styles = colorStyles[layer.color];
+   463→              return (
+   464→                <div key={layer.name}>
+   465→                  {/* Down arrow between layers */}
+   466→                  {layerIdx > 0 && (
+   467→                    <div className="flex justify-center py-1">
+   468→                      <div className="flex flex-col items-center">
+   469→                        <div className="h-3 w-px bg-slate-300" />
+   470→                        <div className="h-0 w-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-300" />
+   471→                      </div>
+   472→                    </div>
+   473→                  )}
+   474→                  {/* Layer container */}
+   475→                  <div
+   476→                    className={cn(
+   477→                      'rounded-xl border p-3 sm:p-4',
+   478→                      styles.layerBg,
+   479→                      styles.layerBorder,
+   480→                      layer.highlight && 'ring-2 ring-amber-500/20'
+   481→                    )}
+   482→                  >
+   483→                    <div className="mb-2 flex items-center gap-2">
+   484→                      {layer.highlight && (
+   485→                        <span className="relative flex h-2 w-2">
+   486→                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+   487→                          <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+   488→                        </span>
+   489→                      )}
+   490→                      <p className={cn('text-[11px] font-semibold tracking-wider uppercase sm:text-xs', styles.layerLabel)}>
+   491→                        {layer.name}
+   492→                      </p>
+   493→                    </div>
+   494→                    <div className="flex flex-wrap gap-2">
+   495→                      {layer.items.map((item) => {
+   496→                        const ItemIcon = item.icon;
+   497→                        return (
+   498→                          <div
+   499→                            key={item.label}
+   500→                            className={cn(
+   501→                              'flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors',
+   502→                              styles.itemBg,
+   503→                              styles.itemBorder
+   504→                            )}
+   505→                          >
+   506→                            <ItemIcon className={cn('h-3.5 w-3.5', styles.iconColor)} />
+   507→                            <span className={cn('text-xs font-medium', styles.itemText)}>{item.label}</span>
+   508→                          </div>
+   509→                        );
+   510→                      })}
+   511→                    </div>
+   512→                  </div>
+   513→                </div>
+   514→              );
+   515→            })}
+   516→          </div>
+   517→        </CardContent>
+   518→      </Card>
+   519→    </motion.section>
+   520→  );
+   521→}
+   522→
+   523→function ActivityTimeline() {
+   524→  return (
+   525→    <motion.section variants={itemVariants}>
+   526→      <Card className="border-slate-200/60 bg-white">
+   527→        <CardHeader className="pb-3">
+   528→          <div className="flex items-center gap-2">
+   529→            <Clock className="h-4 w-4 text-slate-500" />
+   530→            <CardTitle className="text-sm font-semibold tracking-wide uppercase sm:text-base">
+   531→              Recent Activity
+   532→            </CardTitle>
+   533→          </div>
+   534→        </CardHeader>
+   535→        <CardContent>
+   536→          <div className="relative space-y-0">
+   537→            {TIMELINE_EVENTS.map((event, idx) => (
+   538→              <div key={idx} className="relative flex gap-3 pb-5 last:pb-0">
+   539→                {/* Vertical line */}
+   540→                {idx < TIMELINE_EVENTS.length - 1 && (
+   541→                  <div className="absolute left-[7px] top-4 h-full w-px bg-slate-200" />
+   542→                )}
+   543→                {/* Dot */}
+   544→                <div className="relative z-10 mt-1 flex-shrink-0">
+   545→                  <span
+   546→                    className={cn(
+   547→                      'inline-block h-3.5 w-3.5 rounded-full ring-4 ring-white',
+   548→                      event.moduleColor
+   549→                    )}
+   550→                  />
+   551→                </div>
+   552→                {/* Content */}
+   553→                <div className="min-w-0 flex-1">
+   554→                  <p className="text-sm font-medium text-slate-700">{event.description}</p>
+   555→                  <div className="mt-0.5 flex items-center gap-2">
+   556→                    <span className="text-[11px] text-slate-400">{event.time}</span>
+   557→                    <Badge
+   558→                      variant="outline"
+   559→                      className={cn(
+   560→                        'h-4 border px-1.5 text-[9px] font-semibold uppercase tracking-wider',
+   561→                        event.module === 'SEFE' && 'border-emerald-500/20 text-emerald-600',
+   562→                        event.module === 'DAPM' && 'border-amber-500/20 text-amber-600',
+   563→                        event.module === 'A-SE3Diff' && 'border-cyan-500/20 text-cyan-600',
+   564→                        event.module === 'System' && 'border-slate-300 text-slate-500'
+   565→                      )}
+   566→                    >
+   567→                      {event.module}
+   568→                    </Badge>
+   569→                  </div>
+   570→                </div>
+   571→              </div>
+   572→            ))}
+   573→          </div>
+   574→        </CardContent>
+   575→      </Card>
+   576→    </motion.section>
+   577→  );
+   578→}
+   579→
+   580→function BiologicalTargetsOverview() {
+   581→  const classColors: Record<string, string> = {
+   582→    'Class A Beta-Lactamase': 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
+   583→    'Metallo-Beta-Lactamase (Class B)': 'bg-rose-500/10 text-rose-700 border-rose-500/20',
+   584→    'DNA Gyrase (Type IIA Topoisomerase)': 'bg-cyan-500/10 text-cyan-700 border-cyan-500/20',
+   585→  };
+   586→
+   587→  return (
+   588→    <motion.section variants={itemVariants}>
+   589→      <Card className="border-slate-200/60 bg-white">
+   590→        <CardHeader className="pb-3">
+   591→          <div className="flex items-center gap-2">
+   592→            <Dna className="h-4 w-4 text-slate-500" />
+   593→            <CardTitle className="text-sm font-semibold tracking-wide uppercase sm:text-base">
+   594→              Biological Targets
+   595→            </CardTitle>
+   596→          </div>
+   597→          <CardDescription>
+   598→            {PROTEIN_TARGETS.length} protein targets loaded for analysis
+   599→          </CardDescription>
+   600→        </CardHeader>
+   601→        <CardContent>
+   602→          <div className="space-y-3">
+   603→            {PROTEIN_TARGETS.map((target) => (
+   604→              <div
+   605→                key={target.id}
+   606→                className="group flex items-center justify-between gap-3 rounded-lg border border-slate-200/60 bg-slate-50/50 p-3 transition-colors hover:bg-slate-50"
+   607→              >
+   608→                <div className="min-w-0 flex-1">
+   609→                  <div className="flex flex-wrap items-center gap-2">
+   610→                    <span className="text-sm font-semibold text-slate-800">{target.name}</span>
+   611→                    <Badge
+   612→                      variant="outline"
+   613→                      className={cn('border text-[10px] font-medium', classColors[target.targetClass])}
+   614→                    >
+   615→                      {target.targetClass}
+   616→                    </Badge>
+   617→                  </div>
+   618→                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] text-slate-500">
+   619→                    <span className="font-mono">{target.uniprotId}</span>
+   620→                    <span>·</span>
+   621→                    <span className="font-mono">{target.pdbId}</span>
+   622→                    <span>·</span>
+   623→                    <span>{target.organism}</span>
+   624→                    <span>·</span>
+   625→                    <span>{target.sequenceLength} aa</span>
+   626→                  </div>
+   627→                </div>
+   628→                <button className="flex-shrink-0 text-xs font-medium text-emerald-600 opacity-0 transition-opacity hover:text-emerald-700 group-hover:opacity-100">
+   629→                  Select <ChevronRight className="ml-0.5 inline h-3 w-3" />
+   630→                </button>
+   631→              </div>
+   632→            ))}
+   633→          </div>
+   634→        </CardContent>
+   635→      </Card>
+   636→    </motion.section>
+   637→  );
+   638→}
+   639→
+   640→function DevelopmentRoadmap() {
+   641→  const statusStyles = {
+   642→    complete: {
+   643→      dot: 'bg-emerald-500 ring-emerald-500/30',
+   644→      line: 'bg-emerald-500',
+   645→      label: 'text-emerald-700',
+   646→      phase: 'text-emerald-600',
+   647→    },
+   648→    'in-progress': {
+   649→      dot: 'bg-amber-500 ring-amber-500/30',
+   650→      line: 'bg-gradient-to-r from-amber-500 to-slate-300',
+   651→      label: 'text-amber-700',
+   652→      phase: 'text-amber-600',
+   653→    },
+   654→    upcoming: {
+   655→      dot: 'bg-slate-300 ring-slate-300/30',
+   656→      line: 'bg-slate-200',
+   657→      label: 'text-slate-400',
+   658→      phase: 'text-slate-400',
+   659→    },
+   660→  };
+   661→
+   662→  const completedCount = ROADMAP_PHASES.filter((p) => p.status === 'complete').length;
+   663→  const progressPct = Math.round(((completedCount + 0.5) / ROADMAP_PHASES.length) * 100);
+   664→
+   665→  return (
+   666→    <motion.section variants={itemVariants}>
+   667→      <Card className="border-slate-200/60 bg-white">
+   668→        <CardHeader className="pb-3">
+   669→          <div className="flex items-center justify-between">
+   670→            <div className="flex items-center gap-2">
+   671→              <CheckCircle2 className="h-4 w-4 text-slate-500" />
+   672→              <CardTitle className="text-sm font-semibold tracking-wide uppercase sm:text-base">
+   673→                Development Roadmap
+   674→              </CardTitle>
+   675→            </div>
+   676→            <span className="text-xs font-medium text-slate-500">{progressPct}% Complete</span>
+   677→          </div>
+   678→        </CardHeader>
+   679→        <CardContent>
+   680→          {/* Progress bar */}
+   681→          <div className="mb-6">
+   682→            <Progress value={progressPct} className="h-2" />
+   683→          </div>
+   684→
+   685→          {/* Phase timeline */}
+   686→          <div className="relative">
+   687→            {/* Horizontal connecting line (desktop) */}
+   688→            <div className="absolute left-4 right-4 top-3 hidden h-0.5 bg-slate-200 sm:block" />
+   689→            {/* Colored progress overlay on the line */}
+   690→            <div
+   691→              className="absolute left-4 top-3 hidden h-0.5 bg-emerald-500 sm:block"
+   692→              style={{ width: `${(completedCount / (ROADMAP_PHASES.length - 1)) * 100}%` }}
+   693→            />
+   694→
+   695→            <div className="grid grid-cols-1 gap-4 sm:grid-cols-5 sm:gap-2">
+   696→              {ROADMAP_PHASES.map((phase, idx) => {
+   697→                const styles = statusStyles[phase.status];
+   698→                return (
+   699→                  <div key={phase.name} className="relative flex sm:flex-col sm:items-center sm:gap-2">
+   700→                    {/* Mobile: left layout, Desktop: top layout */}
+   701→                    <div className="flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2">
+   702→                      {/* Dot */}
+   703→                      <div className="relative z-10 flex-shrink-0">
+   704→                        {phase.status === 'in-progress' ? (
+   705→                          <span className="relative flex h-6 w-6 sm:h-7 sm:w-7">
+   706→                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-40" />
+   707→                            <span
+   708→                              className={cn(
+   709→                                'relative inline-flex h-6 w-6 items-center justify-center rounded-full sm:h-7 sm:w-7',
+   710→                                'bg-amber-500 ring-4 ring-white'
+   711→                              )}
+   712→                            >
+   713→                              <span className="h-2 w-2 rounded-full bg-white" />
+   714→                            </span>
+   715→                          </span>
+   716→                        ) : (
+   717→                          <div
+   718→                            className={cn(
+   719→                              'flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-white sm:h-7 sm:w-7',
+   720→                              styles.dot,
+   721→                              phase.status === 'complete' && 'bg-emerald-500'
+   722→                            )}
+   723→                          >
+   724→                            {phase.status === 'complete' && (
+   725→                              <CheckCircle2 className="h-3.5 w-3.5 text-white sm:h-4 sm:w-4" />
+   726→                            )}
+   727→                          </div>
+   728→                        )}
+   729→                      </div>
+   730→                      {/* Text */}
+   731→                      <div className="sm:text-center">
+   732→                        <p className={cn('text-[11px] font-bold uppercase tracking-wider sm:text-xs', styles.phase)}>
+   733→                          {phase.name}
+   734→                        </p>
+   735→                        <p className={cn('mt-0.5 text-[11px] sm:text-xs', styles.label)}>{phase.label}</p>
+   736→                      </div>
+   737→                    </div>
+   738→                  </div>
+   739→                );
+   740→              })}
+   741→            </div>
+   742→          </div>
+   743→        </CardContent>
+   744→      </Card>
+   745→    </motion.section>
+   746→  );
+   747→}
+   748→
+   749→// ============================================================================
+   750→// Main Component
+   751→// ============================================================================
+   752→
+   753→export default function DashboardPanel() {
+   754→  return (
+   755→    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50">
+   756→      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+   757→        <motion.div
+   758→          variants={containerVariants}
+   759→          initial="hidden"
+   760→          animate="visible"
+   761→          className="space-y-6 lg:space-y-8"
+   762→        >
+   763→          {/* 1. Hero Header */}
+   764→          <HeroHeader />
+   765→
+   766→          {/* 2. Key Metrics Row */}
+   767→          <KeyMetricsRow />
+   768→
+   769→          <Separator className="opacity-50" />
+   770→
+   771→          {/* 3. Module Status Cards */}
+   772→          <ModuleStatusCards />
+   773→
+   774→          {/* 4. System Architecture + 5. Activity Timeline (side by side on desktop) */}
+   775→          <div className="grid gap-6 lg:grid-cols-5">
+   776→            <div className="lg:col-span-3">
+   777→              <ArchitectureDiagram />
+   778→            </div>
+   779→            <div className="lg:col-span-2">
+   780→              <ActivityTimeline />
+   781→            </div>
+   782→          </div>
+   783→
+   784→          {/* 6. Biological Targets + 7. Roadmap (side by side on desktop) */}
+   785→          <div className="grid gap-6 lg:grid-cols-5">
+   786→            <div className="lg:col-span-3">
+   787→              <BiologicalTargetsOverview />
+   788→            </div>
+   789→            <div className="lg:col-span-2">
+   790→              <DevelopmentRoadmap />
+   791→            </div>
+   792→          </div>
+   793→        </motion.div>
+   794→      </div>
+   795→    </div>
+   796→  );
+   797→}
+   798→

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Dna,
@@ -747,6 +748,83 @@ function DevelopmentRoadmap() {
 }
 
 // ============================================================================
+// Backend Status Banner
+// ============================================================================
+
+function BackendStatusBanner() {
+  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [models, setModels] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function check() {
+      try {
+        const res = await fetch('/api/dataset');
+        const data = await res.json();
+        if (data.backend_offline) {
+          setStatus('offline');
+        } else {
+          setStatus('online');
+          if (data.targets) {
+            setModels(data.targets.map((t: { name: string; has_pdb: boolean }) => `${t.name}${t.has_pdb ? ' [PDB]' : ''}`));
+          }
+        }
+      } catch {
+        setStatus('offline');
+      }
+    }
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div variants={itemVariants}>
+      <Card className={cn(
+        'border-2',
+        status === 'online' ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' :
+        status === 'offline' ? 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20' :
+        'border-muted'
+      )}>
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Server className={cn('h-4 w-4', status === 'online' ? 'text-emerald-500' : 'text-amber-500')} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Python ML Backend</span>
+                  <Badge variant={status === 'online' ? 'default' : 'secondary'} className={cn(
+                    'text-[10px]',
+                    status === 'online' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500/20 text-amber-700'
+                  )}>
+                    {status === 'checking' ? 'Checking...' : status === 'online' ? 'Connected' : 'Simulation Mode'}
+                  </Badge>
+                </div>
+                {status === 'online' && models.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Targets loaded: {models.join(', ')}
+                  </div>
+                )}
+                {status === 'offline' && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Running with built-in simulation. Run <code className="px-1 py-0.5 bg-muted rounded text-[10px] font-mono">./setup.sh</code> to activate real ML engines.
+                  </div>
+                )}
+              </div>
+            </div>
+            {status === 'online' && (
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-emerald-600 font-medium">Live</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -762,6 +840,9 @@ export default function DashboardPanel() {
         >
           {/* 1. Hero Header */}
           <HeroHeader />
+
+          {/* 1.5 Backend Status Banner */}
+          <BackendStatusBanner />
 
           {/* 2. Key Metrics Row */}
           <KeyMetricsRow />

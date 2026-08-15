@@ -14,6 +14,7 @@ import {
   Cpu,
   Menu,
   X,
+  Atom,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
@@ -32,6 +33,10 @@ const DapmPanel = dynamic(
 );
 const Ase3diffPanel = dynamic(
   () => import('@/components/resistodiff/ase3diff-panel'),
+  { loading: () => <PanelSkeleton /> }
+);
+const MolecularSimPanel = dynamic(
+  () => import('@/components/resistodiff/molecular-simulation-panel'),
   { loading: () => <PanelSkeleton /> }
 );
 
@@ -55,6 +60,7 @@ const NAV_ITEMS = [
   { value: 'sefe', label: 'SEFE', icon: Dna, color: 'text-emerald-500', desc: 'Mutation Analysis' },
   { value: 'dapm', label: 'DAPM', icon: ScanSearch, color: 'text-amber-500', desc: 'Pocket Detection' },
   { value: 'ase3diff', label: 'A-SE3Diff', icon: FlaskConical, color: 'text-cyan-500', desc: 'Inhibitor Design' },
+  { value: 'simulation', label: 'MD Simulation', icon: Atom, color: 'text-violet-500', desc: 'Molecular Dynamics' },
 ] as const;
 
 type TabValue = (typeof NAV_ITEMS)[number]['value'];
@@ -208,6 +214,11 @@ export default function ResistoDiffPage() {
             <Ase3diffPanel />
           </div>
         )}
+        {mounted && (
+          <div className={cn(activeTab !== 'simulation' && 'hidden')}>
+            <MolecularSimPanel />
+          </div>
+        )}
       </main>
 
       {/* Footer */}
@@ -230,6 +241,9 @@ export default function ResistoDiffPage() {
             </Badge>
             <Badge variant="outline" className="text-[10px] font-mono h-5">
               Laptop-Optimized
+            </Badge>
+            <Badge variant="outline" className="text-[10px] font-mono h-5">
+              FastAPI Backend
             </Badge>
           </div>
         </div>
