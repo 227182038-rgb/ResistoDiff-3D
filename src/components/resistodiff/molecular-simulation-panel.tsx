@@ -385,6 +385,7 @@ export default function MolecularSimulationPanel() {
   const [rotY, setRotY] = useState(0.4);
   const [rotX, setRotX] = useState(0.3);
   const [rmsfPerAtom, setRmsfPerAtom] = useState<number[]>([]);
+  const [contactMapAtoms, setContactMapAtoms] = useState<SimAtom[]>([]);
 
   // Refs for simulation state
   const atomsRef = useRef<SimAtom[]>([]);
@@ -397,6 +398,7 @@ export default function MolecularSimulationPanel() {
   const rmsfAccumRef = useRef<number[]>([]);
   const rmsfCountRef = useRef(0);
   const initialPositionsRef = useRef<Vec3[]>([]);
+  const simLoopRef = useRef<() => void>(() => {});
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const energyCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -415,6 +417,36 @@ export default function MolecularSimulationPanel() {
       pocketType: p.pocketType,
     }));
   }, [selectedTarget]);
+
+  const contactMapCells = useMemo(() => {
+    if (contactMapAtoms.length === 0) return null;
+    const cellSize = 160 / NUM_RESIDUES;
+    const cells: React.ReactNode[] = [];
+    for (let i = 0; i < NUM_RESIDUES; i++) {
+      for (let j = i; j < NUM_RESIDUES; j++) {
+        const riAtoms = contactMapAtoms.filter(a => a.residueIndex === i);
+        const rjAtoms = contactMapAtoms.filter(a => a.residueIndex === j);
+        if (riAtoms.length === 0 || rjAtoms.length === 0) continue;
+        const ci = riAtoms.reduce((s, a) => ({ x: s.x + a.x, y: s.y + a.y, z: s.z + a.z }), { x: 0, y: 0, z: 0 });
+        ci.x /= riAtoms.length; ci.y /= riAtoms.length; ci.z /= riAtoms.length;
+        const cj = rjAtoms.reduce((s, a) => ({ x: s.x + a.x, y: s.y + a.y, z: s.z + a.z }), { x: 0, y: 0, z: 0 });
+        cj.x /= rjAtoms.length; cj.y /= rjAtoms.length; cj.z /= rjAtoms.length;
+        const dist = Math.sqrt((ci.x - cj.x) ** 2 + (ci.y - cj.y) ** 2 + (ci.z - cj.z) ** 2);
+        const inContact = dist < 6.0;
+        const opacity = inContact ? Math.max(0.2, 1 - dist / 10) : 0.05;
+        const color = inContact ? `rgba(34,197,94,${opacity})` : 'rgba(39,39,42,0.3)';
+        cells.push(
+          <rect key={`${i}-${j}`} x={i * cellSize} y={j * cellSize} width={cellSize - 0.5} height={cellSize - 0.5} fill={color} />
+        );
+        if (i !== j) {
+          cells.push(
+            <rect key={`${j}-${i}`} x={j * cellSize} y={i * cellSize} width={cellSize - 0.5} height={cellSize - 0.5} fill={color} />
+          );
+        }
+      }
+    }
+    return cells;
+  }, [contactMapAtoms]);
 
   // --- Initialize protein ---
   const initSimulation = useCallback(() => {
@@ -437,6 +469,7 @@ export default function MolecularSimulationPanel() {
     rmsfAccumRef.current = new Array(atoms.length).fill(0);
     rmsfCountRef.current = 0;
     initialPositionsRef.current = atoms.map(a => ({ x: a.x, y: a.y, z: a.z }));
+    setContactMapAtoms([...atoms]);
     setStats({
       currentStep: 0, totalSteps: numSteps, elapsedTime: 0,
       currentTemperature: 0, totalEnergy: 0, radiusOfGyration: 0,
@@ -495,7 +528,7 @@ export default function MolecularSimulationPanel() {
       setStats({
         currentStep: stepRef.current,
         totalSteps: numSteps,
-        elapsedTime,
+        elapsedTime: elapsed,
         currentTemperature: currentTemp,
         totalEnergy: totalE,
         radiusOfGyration: rg,
@@ -504,6 +537,7 @@ export default function MolecularSimulationPanel() {
       if (stepRef.current >= numSteps) {
         setIsRunning(false);
         setIsComplete(true);
+        setContactMapAtoms([...atoms]);
         break;
       }
     }
@@ -514,8 +548,12 @@ export default function MolecularSimulationPanel() {
       setRmsfPerAtom(rmsfAccumRef.current.map(v => Math.sqrt(v / count)));
     }
 
-    animFrameRef.current = requestAnimationFrame(simLoop);
-  }, [isRunning, isPaused, temperature, timeStep, numSteps, applyThermostat]);
+    animFrameRef.current = requestAnimationFrame(() => simLoopRef.current());
+  }, [temperature, timeStep, numSteps, applyThermostat]);
+
+  useEffect(() => {
+    simLoopRef.current = simLoop;
+  }, [simLoop]);
 
   // --- Run/stop simulation ---
   const handlePlay = useCallback(() => {
@@ -1355,38 +1393,8 @@ export default function MolecularSimulationPanel() {
                     {/* Mini contact map heatmap */}
                     <svg viewBox="0 0 160 160" className="w-full max-w-[200px] mx-auto" role="img" aria-label="Contact map heatmap">
                       <rect width="160" height="160" fill="#09090b" rx="4" />
-                      {/* Generate a deterministic contact map based on structure */}
-                      {(() => {
-                        const atoms = atomsRef.current;
-                        if (atoms.length === 0) return null;
-                        const cellSize = 160 / NUM_RESIDUES;
-                        const cells: React.ReactNode[] = [];
-                        for (let i = 0; i < NUM_RESIDUES; i++) {
-                          for (let j = i; j < NUM_RESIDUES; j++) {
-                            // Get centroid of each residue
-                            const riAtoms = atoms.filter(a => a.residueIndex === i);
-                            const rjAtoms = atoms.filter(a => a.residueIndex === j);
-                            if (riAtoms.length === 0 || rjAtoms.length === 0) continue;
-                            const ci = riAtoms.reduce((s, a) => ({ x: s.x + a.x, y: s.y + a.y, z: s.z + a.z }), { x: 0, y: 0, z: 0 });
-                            ci.x /= riAtoms.length; ci.y /= riAtoms.length; ci.z /= riAtoms.length;
-                            const cj = rjAtoms.reduce((s, a) => ({ x: s.x + a.x, y: s.y + a.y, z: s.z + a.z }), { x: 0, y: 0, z: 0 });
-                            cj.x /= rjAtoms.length; cj.y /= rjAtoms.length; cj.z /= rjAtoms.length;
-                            const dist = Math.sqrt((ci.x - cj.x) ** 2 + (ci.y - cj.y) ** 2 + (ci.z - cj.z) ** 2);
-                            const inContact = dist < 6.0;
-                            const opacity = inContact ? Math.max(0.2, 1 - dist / 10) : 0.05;
-                            const color = inContact ? `rgba(34,197,94,${opacity})` : 'rgba(39,39,42,0.3)';
-                            cells.push(
-                              <rect key={`${i}-${j}`} x={i * cellSize} y={j * cellSize} width={cellSize - 0.5} height={cellSize - 0.5} fill={color} />
-                            );
-                            if (i !== j) {
-                              cells.push(
-                                <rect key={`${j}-${i}`} x={j * cellSize} y={i * cellSize} width={cellSize - 0.5} height={cellSize - 0.5} fill={color} />
-                              );
-                            }
-                          }
-                        }
-                        return cells;
-                      })()}
+                      {/* Render memoized contact map based on structure */}
+                      {contactMapCells}
                       <rect width="160" height="160" fill="none" stroke="#3f3f46" strokeWidth="1" rx="4" />
                     </svg>
                     <div className="grid grid-cols-2 gap-2 text-center">

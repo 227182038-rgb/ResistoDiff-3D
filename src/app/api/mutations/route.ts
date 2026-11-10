@@ -9,9 +9,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') ?? '50', 10)
 
     // Find the protein in the database
-    const protein = await db.proteinTarget.findUnique({
-      where: proteinId ? { id: proteinId } : undefined,
-    })
+    const protein = proteinId
+      ? await db.proteinTarget.findUnique({
+          where: { id: proteinId },
+        })
+      : null
 
     // Query mutation results from the database
     const whereClause = protein

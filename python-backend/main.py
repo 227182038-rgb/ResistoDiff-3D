@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI):
     logger.info("ESM-2 binding scorer loaded (CPU).")
 
     app.state.pocket_detector = PocketDetector(
-        probe_radius=1.4, min_volume=50.0, grid_spacing=0.5
+        probe_radius=1.4, min_volume=50.0, grid_spacing=0.8
     )
     logger.info("Geometric pocket detector ready.")
 
@@ -252,9 +252,10 @@ class TargetDetail(BaseModel):
 class SEFE_mutateRequest(BaseModel):
     """Request body for SEFE mutation analysis."""
     target_id: str = Field(..., description="Target identifier (e.g. 'tem1')")
-    mutations: List[Dict[str, Any]] = Field(
-        ..., description="List of mutations [{position: int, mutant: str}, …]"
+    mutations: Optional[List[Any]] = Field(
+        None, description="List of mutations [{position: int, mutant: str}, …] or ['G238S', …]"
     )
+    run_all_known: Optional[bool] = Field(False, description="Whether to run all known mutations")
     pdb_id: Optional[str] = Field(None, description="PDB ID to use (defaults to first available)")
 
 
@@ -317,8 +318,9 @@ class DAPM_simulateResponse(BaseModel):
 class ASE3Diff_generateRequest(BaseModel):
     """Request body for SE(3) diffusion molecule generation."""
     target_id: str = Field(..., description="Target identifier")
-    pocket_center: List[float] = Field(..., min_length=3, max_length=3, description="Pocket centre [x, y, z] in Å")
+    pocket_center: Optional[List[float]] = Field(None, min_length=3, max_length=3, description="Pocket centre [x, y, z] in Å")
     pocket_radius: float = Field(5.0, gt=1.0, le=30.0, description="Pocket radius in Å")
+    pocket_id: Optional[int] = Field(1, description="Pocket ID if pocket_center is not specified")
     num_atoms: int = Field(25, ge=5, le=100, description="Atoms per generated molecule")
     num_molecules: int = Field(6, ge=1, le=50, description="Number of molecules to generate")
     num_steps: int = Field(50, ge=5, le=500, description="Diffusion denoising steps")
@@ -505,9 +507,10 @@ def _molecule_to_out(m: GeneratedMolecule) -> MoleculeOut:
 def _run_sefe_mutate(
     task_id: str,
     target_id: str,
-    mutations: List[Dict[str, Any]],
+    mutations: Optional[List[Any]],
     pdb_id: Optional[str],
     scorer: MutationScorer,
+    run_all_known: bool = False,
 ) -> None:
     """Run SEFE mutation analysis in a background thread."""
     try:
@@ -559,8 +562,38 @@ def _run_sefe_mutate(
                 if catalytic_indices:
                     break
 
+        # Normalize mutations (supports ["G238S"], [{"position": 238, "mutant": "S"}], or run_all_known)
+        normalized_mutations: List[Dict[str, Any]] = []
+        if run_all_known or not mutations:
+            for km in target.known_mutations:
+                normalized_mutations.append({
+                    "wild_type": km.wild_type,
+                    "position": km.position,
+                    "mutant": km.mutant,
+                    "name": km.name,
+                })
+        else:
+            for m in mutations:
+                if isinstance(m, str):
+                    import re
+                    match = re.match(r"^([A-Za-z])?(\d+)([A-Za-z])$", m.strip())
+                    if match:
+                        wt, pos, mut_aa = match.groups()
+                        normalized_mutations.append({
+                            "wild_type": (wt or "").upper(),
+                            "position": int(pos),
+                            "mutant": mut_aa.upper(),
+                            "name": m.strip(),
+                        })
+                    else:
+                        normalized_mutations.append({"position": 1, "mutant": "A", "raw": m})
+                elif isinstance(m, dict):
+                    normalized_mutations.append(m)
+                else:
+                    normalized_mutations.append(dict(m))
+
         results: List[Dict[str, Any]] = []
-        for mut in mutations:
+        for mut in normalized_mutations:
             pos = mut["position"]
             new_aa = mut["mutant"]
 
@@ -633,9 +666,9 @@ def _run_pocket_detection(
             for res in chain:
                 if res.id[0] != " ":
                     continue
-                ca = res.get("CA")
-                if ca is None:
+                if "CA" not in res:
                     continue
+                ca = res["CA"]
                 positions.append(ca.get_coord().tolist())
                 rname = res.get_resname()
                 radii.append(vdw_map.get(rname, 3.5))
@@ -821,6 +854,7 @@ async def sefe_mutate(
         request.mutations,
         request.pdb_id,
         app.state.egnn_scorer,
+        bool(request.run_all_known),
     )
 
     return SEFE_mutateResponse(
@@ -925,12 +959,22 @@ async def ase3diff_generate(
     if target is None:
         raise HTTPException(status_code=404, detail=f"Target '{request.target_id}' not found.")
 
+    pocket_center = request.pocket_center
+    if pocket_center is None:
+        default_centers = {
+            "tem1": [15.0, 28.0, 5.0],
+            "kpc2": [12.0, 25.0, 8.0],
+            "ndm1": [18.0, 30.0, 10.0],
+            "gyra": [22.0, 35.0, 12.0],
+        }
+        pocket_center = default_centers.get(request.target_id.lower(), [15.0, 28.0, 5.0])
+
     task_id = task_store.create(f"ase3diff_generate_{request.target_id}")
     background_tasks.add_task(
         _run_molecule_generation,
         task_id,
         request.target_id,
-        request.pocket_center,
+        pocket_center,
         request.pocket_radius,
         request.num_atoms,
         request.num_molecules,

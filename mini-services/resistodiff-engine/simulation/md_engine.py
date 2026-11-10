@@ -314,21 +314,25 @@ class ProteinSimulator:
         charges_arr = np.array(charges, dtype=np.float64)
         box = float(np.max(np.abs(pos)) * 2.5 + 20.0)
         system = MolecularSystem(pos, masses_arr, charges_arr, box_size=box)
-        return cls(system, res_ids)
+        inst = cls(system, res_ids)
+        inst._loaded_path = str(pdb_path)
+        return inst
 
-    def simulate(self, pdb_path: str, n_steps: int = 500) -> dict:
-        """Run MD on *pdb_path* and return results + analysis."""
-        sim = ProteinSimulator.from_pdb(pdb_path)
-        traj = sim.system.run(n_steps=n_steps, dt=0.002, save_every=10)
-        rmsf = sim.system.get_rmsf(traj)
-        b_factors = sim.system.get_b_factors(traj)
-        rg = self.analyzer.compute_radius_of_gyration(
-            sim.system.positions, sim.system.masses
+    def simulate(self, pdb_path: str | None = None, n_steps: int = 500, dt: float = 0.002) -> dict:
+        """Run MD on *pdb_path* (or current loaded system) and return results + analysis."""
+        target = self
+        if pdb_path and getattr(self, "_loaded_path", None) != str(pdb_path):
+            target = ProteinSimulator.from_pdb(pdb_path)
+        traj = target.system.run(n_steps=n_steps, dt=dt, save_every=10)
+        rmsf = target.system.get_rmsf(traj)
+        b_factors = target.system.get_b_factors(traj)
+        rg = target.analyzer.compute_radius_of_gyration(
+            target.system.positions, target.system.masses
         )
-        contacts = self.analyzer.find_contacts(sim.system.positions, cutoff=4.5)
+        contacts = target.analyzer.find_contacts(target.system.positions, cutoff=4.5)
         return {
             "trajectory": traj,
-            "residue_ids": sim.residue_ids,
+            "residue_ids": target.residue_ids,
             "rmsf": rmsf.tolist(),
             "b_factors": b_factors.tolist(),
             "radius_of_gyration": rg,

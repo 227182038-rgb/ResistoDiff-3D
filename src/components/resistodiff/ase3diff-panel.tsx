@@ -87,7 +87,7 @@ import {
 // Noise Visualization Component (animated SVG dots denoising)
 // ==========================================================================
 function NoiseVisualization({ progress }: { progress: number }) {
-  const dotsRef = useRef<(HTMLCircleElement | null)[]>([]);
+  const dotsRef = useRef<(SVGCircleElement | null)[]>([]);
   const [dots] = useState(() => {
     const arr: { x: number; y: number; tx: number; ty: number; delay: number }[] = [];
     // Target positions: a hexagonal molecule-like shape
@@ -245,7 +245,7 @@ function SDEVisualization({ isGenerating, progress }: { isGenerating: boolean; p
         <Waves className="size-4 text-teal-500" />
         <span className="text-sm font-medium">Reverse SDE Process</span>
         <span className="text-xs text-muted-foreground font-mono ml-auto">
-          dx<tspan className="text-[10px]">t</tspan> = f(x<tspan className="text-[10px]">t</tspan>, t)dt + g(t)dw<tspan className="text-[10px]">t</tspan>
+          dx<sub className="text-[10px] align-sub">t</sub> = f(x<sub className="text-[10px] align-sub">t</sub>, t)dt + g(t)dw<sub className="text-[10px] align-sub">t</sub>
         </span>
       </div>
 
@@ -549,13 +549,14 @@ export default function ASE3DiffPanel() {
     };
   }, []);
 
-  // Auto-select first pocket when target changes
-  useEffect(() => {
-    const pockets = DEMO_POCKETS[selectedTarget];
+  // Target change handler with pocket sync
+  const handleTargetChange = useCallback((target: string) => {
+    setSelectedTarget(target);
+    const pockets = DEMO_POCKETS[target];
     if (pockets && pockets.length > 0) {
       setSelectedPocketId(String(pockets[0].pocketId));
     }
-  }, [selectedTarget]);
+  }, []);
 
   // ==========================================================================
   // Render
@@ -600,7 +601,7 @@ export default function ASE3DiffPanel() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Protein Target</Label>
-                <Select value={selectedTarget} onValueChange={setSelectedTarget}>
+                <Select value={selectedTarget} onValueChange={handleTargetChange}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>

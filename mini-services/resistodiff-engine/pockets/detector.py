@@ -174,19 +174,23 @@ class PocketDetector:
             for d, s in enumerate(grid_shape)
         )
         buried = np.zeros(grid_shape, dtype=bool)
-        chunk = 200  # process atoms in chunks to limit memory
-        for start in range(0, n_atoms, chunk):
-            end = min(start + chunk, n_atoms)
-            # (C, 1, 1, 3) vs (1, Gx, Gy, Gz, 3)
-            ax = positions[start:end, 0][:, None, None, None]
-            ay = positions[start:end, 1][:, None, None, None]
-            az = positions[start:end, 2][:, None, None, None]
-            bx = gx[None, :, None, None]
-            by = gy[None, None, :, None]
-            bz = gz[None, None, None, :]
-            dist2 = (ax - bx) ** 2 + (ay - by) ** 2 + (az - bz) ** 2
-            r_eff = (radii[start:end, None, None, None] + self.probe_radius) ** 2
-            buried |= np.any(dist2 < r_eff, axis=0)
+        for i in range(n_atoms):
+            r = radii[i] + self.probe_radius
+            r2 = r * r
+            pos = positions[i]
+            ix_min = max(0, int(np.floor((pos[0] - r - origin[0]) / self.grid_spacing)))
+            ix_max = min(grid_shape[0], int(np.ceil((pos[0] + r - origin[0]) / self.grid_spacing)) + 1)
+            iy_min = max(0, int(np.floor((pos[1] - r - origin[1]) / self.grid_spacing)))
+            iy_max = min(grid_shape[1], int(np.ceil((pos[1] + r - origin[1]) / self.grid_spacing)) + 1)
+            iz_min = max(0, int(np.floor((pos[2] - r - origin[2]) / self.grid_spacing)))
+            iz_max = min(grid_shape[2], int(np.ceil((pos[2] + r - origin[2]) / self.grid_spacing)) + 1)
+
+            sub_gx = gx[ix_min:ix_max] - pos[0]
+            sub_gy = gy[iy_min:iy_max] - pos[1]
+            sub_gz = gz[iz_min:iz_max] - pos[2]
+
+            d2 = sub_gx[:, None, None] ** 2 + sub_gy[None, :, None] ** 2 + sub_gz[None, None, :] ** 2
+            buried[ix_min:ix_max, iy_min:iy_max, iz_min:iz_max] |= (d2 < r2)
 
         # ---- 3. Find void points ----
         # A void point is not buried but has buried neighbours on >=3

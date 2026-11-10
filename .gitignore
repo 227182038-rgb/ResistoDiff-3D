@@ -52,3 +52,23 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+python-backend/data/
+
+# ECC Agents
+.agents/
+
+# SQLite journals
+*.db-journal
+*.sqlite3-journal
+
+# Temporary tool & commit outputs
+tool-results/
+COMMIT_EDITMSG

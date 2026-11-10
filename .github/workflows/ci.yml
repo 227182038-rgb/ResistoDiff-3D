@@ -1,0 +1,55 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: [main, master, "audit/*"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  frontend-check:
+    name: Frontend Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript Check
+        run: npx tsc --noEmit
+
+      - name: Next.js Build
+        run: npx next build
+
+  python-check:
+    name: Python ML Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r python-backend/requirements.txt
+          pip install pytest
+
+      - name: Run Pytest Suite
+        run: pytest tests/test_backend_api.py tests/test_ml_engines.py -v

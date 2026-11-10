@@ -485,9 +485,9 @@ class ProteinGraphBuilder:
             for res in chain:
                 if res.id[0] != " ":  # skip HETATMs / waters
                     continue
-                ca = res.get("CA")
-                if ca is None:
+                if "CA" not in res:
                     continue
+                ca = res["CA"]
                 coords.append(ca.get_coord().astype(np.float32))
                 aa_types.append(res.get_resname())
                 bfactors.append(ca.get_bfactor())
@@ -714,8 +714,8 @@ def _demo() -> None:
     ddg_b = scorer.compute_ddg_binding(x, mut_coords, active_mask)
     ddg_c = scorer.compute_catalysis_effect(mut_coords, catalytic)
     fitness = scorer.compute_fitness_score(ddg_f, ddg_c, ddg_b)
-    print(f"[OK] MutationScorer  ΔΔG_fold={ddg_f:.4f}  "
-          f"ΔΔG_bind={ddg_b:.4f}  catalysis={ddg_c:.4f}  fitness={fitness:.4f}")
+    print(f"[OK] MutationScorer  ddG_fold={ddg_f:.4f}  "
+          f"ddG_bind={ddg_b:.4f}  catalysis={ddg_c:.4f}  fitness={fitness:.4f}")
 
     # 6. Weights loader (no file → Xavier init)
     load_pretrained_egnn(scorer)

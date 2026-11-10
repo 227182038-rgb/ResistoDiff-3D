@@ -56,7 +56,7 @@ function PanelSkeleton() {
 }
 
 const NAV_ITEMS = [
-  { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-emerald-500' },
+  { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-emerald-500', desc: 'Overview & Targets' },
   { value: 'sefe', label: 'SEFE', icon: Dna, color: 'text-emerald-500', desc: 'Mutation Analysis' },
   { value: 'dapm', label: 'DAPM', icon: ScanSearch, color: 'text-amber-500', desc: 'Pocket Detection' },
   { value: 'ase3diff', label: 'A-SE3Diff', icon: FlaskConical, color: 'text-cyan-500', desc: 'Inhibitor Design' },
